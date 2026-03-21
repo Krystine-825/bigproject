@@ -6,7 +6,8 @@ import 'register_screen.dart';
 import 'forgot_password_screen.dart';
 import '../teacher/dashboard_screen.dart';
 import 'profile_screen.dart';
-import '../../../auth_service.dart'; // Thêm import AuthService của bạn
+import '../../../auth_service.dart'; 
+import '../student/student_home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -202,19 +203,19 @@ class _LoginScreenState extends State<LoginScreen> {
                   final userDoc = await AuthService().getUserProfile();
                   if (userDoc.exists) {
                     final role = userDoc.get('role');
-                    
+                  
+
                     if (role == 'teacher') {
                       Navigator.pushReplacement(
                         context,
                         MaterialPageRoute(builder: (_) => const DashboardScreen()),
                       );
                     } else {
-                      // Nếu là học sinh, hiện thông báo vì nhóm chưa code xong màn hình này
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                        content: Text("Đăng nhập thành công! Giao diện học sinh đang được phát triển."),
-                        backgroundColor: AppColors.success,
-                      ));
-                      // TODO: Thay bằng Navigator trỏ tới StudentHomeScreen khi nhóm code xong
+                      // Bỏ cái Snackbar thông báo đi và cho nhảy thẳng vào màn hình tạm
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(builder: (_) => const StudentHomeScreen()),
+                      );
                     }
                   }
                 } catch (e) {

@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../../auth_service.dart'; 
+import '../../main.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -77,76 +81,106 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   
   Widget _header() {
+    final currentUser = FirebaseAuth.instance.currentUser;
+
     return Container(
       color: AppColors.white,
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
       child: Row(
         children: [
-          // Avatar + tên
-          Row(
-            children: [
-              Stack(
+          // Avatar + tên (Lấy dữ liệu thật từ Firebase)
+          FutureBuilder<DocumentSnapshot>(
+            future: FirebaseFirestore.instance.collection('users').doc(currentUser?.uid).get(),
+            builder: (context, snapshot) {
+              String userName = "Đang tải...";
+              
+              if (snapshot.hasData && snapshot.data!.exists) {
+                userName = snapshot.data!.get('fullName') ?? 'Giáo viên'; 
+              }
+
+              return Row(
                 children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                          color: AppColors.primary, width: 2),
-                    ),
-                    child: ClipOval(
-                      child: Image.network(
-                        'https://lh3.googleusercontent.com/aida-public/AB6AXuBBdlD8Sy6NnrzfXxVGNRMMYcoswYPk-omc4vXxN0OWYxo0hvt3ZrkzhnxG6-dtZyVmk-rBgAB0jH6Ke0_K-8Sk6PcerKQ7nXdvSYRFZ0HSRx6WIK8FaEKI6iBpAgG8c9XSlGWLaRnRybqE1YdGaocwBzi2ptH8aLdqh-nbctF9C7AX8OJ6xbM45iLS2MR1OIZiClmV3jcxavCz7T_T7vKbPHuv58H569YDV2mWUn-QmzhF-ejQkt89xLIUhLCtD9pMIhIsxosVyYY',
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const Icon(
-                            Icons.person_rounded,
-                            color: AppColors.textHint),
+                  Stack(
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: AppColors.primary, width: 2),
+                        ),
+                        child: ClipOval(
+                          child: Image.network(
+                            'https://ui-avatars.com/api/?name=$userName&background=0D8ABC&color=fff', 
+                            fit: BoxFit.cover,
+                          ),
+                        ),
                       ),
-                    ),
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: Container(
+                          width: 12,
+                          height: 12,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF22C55E),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: AppColors.white, width: 2),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  // Chấm xanh online
-                  Positioned(
-                    bottom: 0,
-                    right: 0,
-                    child: Container(
-                      width: 12,
-                      height: 12,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF22C55E),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                            color: AppColors.white, width: 2),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Xin chào,',
+                        style: TextStyle(fontSize: 13, color: AppColors.textLight),
                       ),
-                    ),
+                      Text(
+                        userName, 
+                        style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textDark,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
-              ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Xin chào,',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: AppColors.textLight,
-                    ),
-                  ),
-                  const Text(
-                    'Nguyễn Văn A',
-                    style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textDark,
-                    ),
-                  ),
-                ],
-              ),
-            ],
+              );
+            }
           ),
           const Spacer(),
-          // Nút thông báo
+          
+          // 1. NÚT ĐĂNG XUẤT (Thêm mới, nằm riêng biệt bên trái nút thông báo)
+          GestureDetector(
+            onTap: () async {
+              await AuthService().logout();
+              if (context.mounted) {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AuthWrapper()),
+                  (route) => false,
+                );
+              }
+            },
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Colors.redAccent.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.logout_rounded, color: Colors.redAccent, size: 20),
+            ),
+          ),
+          
+          const SizedBox(width: 12), 
+          
+          
           Container(
             width: 40,
             height: 40,
