@@ -6,6 +6,7 @@ import 'firebase_options.dart';
 import 'auth_service.dart';
 import 'screens/auth/onboarding_screen.dart';
 import 'screens/teacher/dashboard_screen.dart';
+import 'screens/student/student_home_screen.dart';
 
 void main() async {
   // Bắt buộc phải có 2 dòng này để Firebase hoạt động trước khi app chạy
@@ -63,7 +64,16 @@ class AuthWrapper extends StatelessWidget {
               if (role == 'teacher') {
                 return const DashboardScreen(); // Vào màn hình Giáo viên
               } else {
-                return const Scaffold(body: Center(child: Text("Giao diện Học sinh đang phát triển"))); 
+                if (userSnapshot.hasData && userSnapshot.data!.exists) {
+                  String role = userSnapshot.data!.get('role');
+                  // Điều hướng theo Role
+                  if (role == 'teacher') {
+                    return const DashboardScreen(); 
+                  } else {
+                    // THAY THẾ DÒNG CŨ BẰNG DÒNG NÀY:
+                    return const StudentHomeScreen(); 
+                  }
+                } 
               }
             }
             // Mặc định trả về Onboarding nếu có lỗi không lấy được data
