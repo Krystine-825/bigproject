@@ -333,7 +333,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               return;
             }
 
-            // 2. Gọi hàm Backend của bạn
+            
             String? result = await AuthService().register(
               email: _emailCtrl.text.trim(),
               password: _passCtrl.text.trim(),
@@ -341,7 +341,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               role: _role, 
             );
 
-            // 3. Xử lý kết quả trả về
+           
             if (result == "Success") {
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(

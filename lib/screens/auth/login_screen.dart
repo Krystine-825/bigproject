@@ -7,7 +7,9 @@ import 'forgot_password_screen.dart';
 import '../teacher/dashboard_screen.dart';
 import 'profile_screen.dart';
 import '../../../auth_service.dart'; 
+import '../../../main.dart';
 import '../student/student_home_screen.dart';
+
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -172,7 +174,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // --- NÚT ĐĂNG NHẬP ĐÃ ĐƯỢC GẮN BACKEND ---
+  // NÚT ĐĂNG NHẬP ĐÃ ĐƯỢC GẮN BACKEND
   Widget _loginBtn() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
@@ -180,7 +182,7 @@ class _LoginScreenState extends State<LoginScreen> {
         width: double.infinity,
         height: 56,
         child: ElevatedButton(
-          onPressed: () async { // Bật tính năng bất đồng bộ (async)
+          onPressed: () async {
             final error =
                 Validators.email(_emailCtrl.text.trim()) ??
                 Validators.password(_passCtrl.text.trim());
@@ -189,17 +191,17 @@ class _LoginScreenState extends State<LoginScreen> {
               return;
             }
 
-            // 1. Gọi hàm Login từ AuthService
+            
             String? result = await AuthService().login(
               email: _emailCtrl.text.trim(),
               password: _passCtrl.text.trim(),
             );
 
-            // 2. Xử lý kết quả trả về
+            
             if (result == "Success") {
               if (mounted) {
                 try {
-                  // 3. Lấy thông tin Role từ Firestore để điều hướng
+                  
                   final userDoc = await AuthService().getUserProfile();
                   if (userDoc.exists) {
                     final role = userDoc.get('role');
@@ -211,7 +213,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         MaterialPageRoute(builder: (_) => const DashboardScreen()),
                       );
                     } else {
-                      // Bỏ cái Snackbar thông báo đi và cho nhảy thẳng vào màn hình tạm
+                      
                       Navigator.pushReplacement(
                         context,
                         MaterialPageRoute(builder: (_) => const StudentHomeScreen()),
@@ -223,7 +225,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 }
               }
             } else {
-              _showError(result!); // Hiển thị lỗi từ Firebase
+              _showError(result!); 
             }
           },
           style: ElevatedButton.styleFrom(
@@ -268,12 +270,27 @@ class _LoginScreenState extends State<LoginScreen> {
         width: double.infinity,
         height: 56,
         child: OutlinedButton(
-          onPressed: () {
-            // TODO: Google sign in (v2.0)
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const CompleteProfileScreen()),
-            );
+          onPressed: () async {
+            String result = await AuthService().signInWithGoogle();
+            
+            if (!context.mounted) return;
+
+            if (result == "existing") {
+              // Người cũ -> Đá thẳng vào AuthWrapper để tự động chia luồng (Dashboard/StudentHome)
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (_) => const AuthWrapper()),
+                (route) => false,
+              );
+            } else if (result == "new") {
+              // Người mới tinh -> Chuyển sang màn hình chọn Role và nhập thông tin
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => const CompleteProfileScreen()),
+              );
+            } else if (result == "error") {
+              _showError("Đăng nhập Google thất bại.");
+            }
           },
           style: OutlinedButton.styleFrom(
             side: const BorderSide(color: AppColors.border),

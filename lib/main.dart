@@ -9,7 +9,7 @@ import 'screens/teacher/dashboard_screen.dart';
 import 'screens/student/student_home_screen.dart';
 
 void main() async {
-  // Bắt buộc phải có 2 dòng này để Firebase hoạt động trước khi app chạy
+  
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
