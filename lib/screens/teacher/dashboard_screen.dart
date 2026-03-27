@@ -155,7 +155,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           const Spacer(),
           
-          // 1. NÚT ĐĂNG XUẤT (Thêm mới, nằm riêng biệt bên trái nút thông báo)
+          // 1. NÚT ĐĂNG XUẤT 
           GestureDetector(
             onTap: () async {
               await AuthService().logout();
@@ -290,7 +290,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ],
           ),
         ),
-        // Danh sách lớp cuộn ngang
+        
         SizedBox(
           height: 40,
           child: ListView.builder(

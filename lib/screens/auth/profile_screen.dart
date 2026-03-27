@@ -3,6 +3,8 @@ import '../../core/app_colors.dart';
 import '../../widgets/common/custom_text_field.dart';
 import '../teacher/dashboard_screen.dart';
 //import '../student/student_home_screen.dart';
+import '../../../auth_service.dart'; 
+import '../../../main.dart';
 
 class CompleteProfileScreen extends StatefulWidget {
   const CompleteProfileScreen({super.key});
@@ -31,7 +33,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         child: Column(
           children: [
             _topBar(),
-            // Expanded chia đều phần còn lại cho nội dung
+            
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -244,19 +246,29 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         width: double.infinity,
         height: 56,
         child: ElevatedButton.icon(
-          onPressed: () {
-            // TODO: lưu profile lên Firestore
-            if (_role == 'teacher') {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (_) => const DashboardScreen()),
-              );
-            } else {
-              // Navigator.pushReplacement(
-              //   context,
-              //   MaterialPageRoute(builder: (_) => const StudentHomeScreen()),
-              // );
-            }
+          onPressed: () async {
+            // 1. Thu thập dữ liệu từ các ô nhập liệu
+            String name = _nameCtrl.text.trim();
+            String phone = _phoneCtrl.text.trim();
+            
+            // (Bạn có thể thêm hàm kiểm tra Validator ở đây nếu cần, ví dụ bắt buộc nhập tên)
+            
+            // 2. Gọi hàm lưu lên Firestore
+            await AuthService().completeUserProfile(
+              name: name,
+              phone: phone,
+              role: _role, // Biến _role này thay đổi khi người dùng click vào thẻ Giáo viên/Học sinh
+            );
+
+            if (!context.mounted) return;
+            
+            // 3. Đăng ký thành công -> Đẩy về AuthWrapper
+            // AuthWrapper sẽ quét Database, thấy role vừa lưu và đẩy họ vào đúng màn hình!
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (_) => const AuthWrapper()),
+              (route) => false,
+            );
           },
           icon: const Icon(Icons.arrow_forward_rounded),
           label: const Text(
