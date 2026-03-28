@@ -1,5 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
+import 'class_list_screen.dart';
+import '../../widgets/common/custom_button_nav.dart';
+import '../../core/app_navigator.dart';
+import '../../controllers/auth_controller.dart';
+import '../../controllers/class_controller.dart';
+import '../../data/models/class_model.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -71,11 +77,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: _bottomNav(),
+      bottomNavigationBar: CustomBottomNav(currentIndex: _selectedNav),
     );
   }
 
-  
   Widget _header() {
     return Container(
       color: AppColors.white,
@@ -92,16 +97,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     height: 48,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border: Border.all(
-                          color: AppColors.primary, width: 2),
+                      border: Border.all(color: AppColors.primary, width: 2),
                     ),
                     child: ClipOval(
-                      child: Image.network(
-                        'https://lh3.googleusercontent.com/aida-public/AB6AXuBBdlD8Sy6NnrzfXxVGNRMMYcoswYPk-omc4vXxN0OWYxo0hvt3ZrkzhnxG6-dtZyVmk-rBgAB0jH6Ke0_K-8Sk6PcerKQ7nXdvSYRFZ0HSRx6WIK8FaEKI6iBpAgG8c9XSlGWLaRnRybqE1YdGaocwBzi2ptH8aLdqh-nbctF9C7AX8OJ6xbM45iLS2MR1OIZiClmV3jcxavCz7T_T7vKbPHuv58H569YDV2mWUn-QmzhF-ejQkt89xLIUhLCtD9pMIhIsxosVyYY',
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const Icon(
-                            Icons.person_rounded,
-                            color: AppColors.textHint),
+                      child: Container(
+                        color: const Color(0xFFE2E8F0),
+                        child: const Icon(
+                          Icons.person_rounded,
+                          color: AppColors.textHint,
+                          size: 28,
+                        ),
                       ),
                     ),
                   ),
@@ -115,8 +120,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       decoration: BoxDecoration(
                         color: const Color(0xFF22C55E),
                         shape: BoxShape.circle,
-                        border: Border.all(
-                            color: AppColors.white, width: 2),
+                        border: Border.all(color: AppColors.white, width: 2),
                       ),
                     ),
                   ),
@@ -128,10 +132,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 children: [
                   Text(
                     'Xin chào,',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: AppColors.textLight,
-                    ),
+                    style: TextStyle(fontSize: 13, color: AppColors.textLight),
                   ),
                   const Text(
                     'Nguyễn Văn A',
@@ -161,14 +162,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ],
             ),
-            child: const Icon(Icons.notifications_outlined,
-                color: AppColors.textLight, size: 22),
+            child: const Icon(
+              Icons.notifications_outlined,
+              color: AppColors.textLight,
+              size: 22,
+            ),
           ),
         ],
       ),
     );
   }
-
 
   Widget _statsSection() {
     return Padding(
@@ -177,9 +180,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         children: _stats.map((stat) {
           return Expanded(
             child: Container(
-              margin: EdgeInsets.only(
-                right: stat == _stats.last ? 0 : 12,
-              ),
+              margin: EdgeInsets.only(right: stat == _stats.last ? 0 : 12),
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: AppColors.white,
@@ -195,8 +196,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               child: Column(
                 children: [
-                  Icon(stat['icon'] as IconData,
-                      color: AppColors.primary, size: 24),
+                  Icon(
+                    stat['icon'] as IconData,
+                    color: AppColors.primary,
+                    size: 24,
+                  ),
                   const SizedBox(height: 8),
                   Text(
                     stat['label'] as String,
@@ -222,7 +226,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
   }
-
 
   Widget _classesSection() {
     return Column(
@@ -272,9 +275,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   margin: const EdgeInsets.only(right: 12),
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   decoration: BoxDecoration(
-                    color: selected
-                        ? AppColors.primary
-                        : AppColors.white,
+                    color: selected ? AppColors.primary : AppColors.white,
                     borderRadius: BorderRadius.circular(999),
                     border: Border.all(
                       color: selected
@@ -287,7 +288,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               color: AppColors.primary.withOpacity(0.2),
                               blurRadius: 8,
                               offset: const Offset(0, 2),
-                            )
+                            ),
                           ]
                         : [],
                   ),
@@ -297,9 +298,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
-                        color: selected
-                            ? AppColors.white
-                            : AppColors.textDark,
+                        color: selected ? AppColors.white : AppColors.textDark,
                       ),
                     ),
                   ),
@@ -311,7 +310,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ],
     );
   }
-
 
   Widget _activitiesSection() {
     return Column(
@@ -381,8 +379,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
               color: a['bgColor'] as Color,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(a['icon'] as IconData,
-                color: a['iconColor'] as Color, size: 22),
+            child: Icon(
+              a['icon'] as IconData,
+              color: a['iconColor'] as Color,
+              size: 22,
+            ),
           ),
           const SizedBox(width: 12),
           // Nội dung
@@ -412,115 +413,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
           // Thời gian
           Text(
             a['time'] as String,
-            style: const TextStyle(
-              fontSize: 10,
-              color: AppColors.textHint,
-            ),
+            style: const TextStyle(fontSize: 10, color: AppColors.textHint),
           ),
         ],
       ),
     );
   }
 
-  // ─── BOTTOM NAVIGATION ───────────────────────────────
-  Widget _bottomNav() {
-    final items = [
-      {'icon': Icons.home_rounded, 'label': 'Trang chủ'},
-      {'icon': Icons.school_rounded, 'label': 'Lớp học'},
-      {'icon': null, 'label': 'Tạo đề'}, // nút giữa
-      {'icon': Icons.folder_rounded, 'label': 'Kho đề'},
-      {'icon': Icons.person_rounded, 'label': 'Cá nhân'},
-    ];
-
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.white.withOpacity(0.9),
-        border: const Border(
-          top: BorderSide(color: Color(0xFFE2E8F0)),
-        ),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 12, 24, 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: List.generate(items.length, (i) {
-              // Nút tạo đề ở giữa
-              if (items[i]['icon'] == null) {
-                return Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    GestureDetector(
-                      onTap: () {
-                        // TODO: sang màn tạo đề
-                      },
-                      child: Container(
-                        width: 56,
-                        height: 56,
-                        margin: const EdgeInsets.only(bottom: 4),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                              color: AppColors.white, width: 4),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.primary.withOpacity(0.4),
-                              blurRadius: 12,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: const Icon(Icons.add_rounded,
-                            color: AppColors.white, size: 28),
-                      ),
-                    ),
-                    Text(
-                      'Tạo đề',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: AppColors.textLight,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                );
-              }
-
-              final selected = _selectedNav == i;
-              return GestureDetector(
-                onTap: () => setState(() => _selectedNav = i),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      items[i]['icon'] as IconData,
-                      size: 26,
-                      color: selected
-                          ? AppColors.primary
-                          : AppColors.textHint,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      items[i]['label'] as String,
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: selected
-                            ? FontWeight.bold
-                            : FontWeight.w500,
-                        color: selected
-                            ? AppColors.primary
-                            : AppColors.textLight,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }),
-          ),
-        ),
-      ),
-    );
+  void onNavTapped(int i) {
+    setState(() {
+      _selectedNav = i;
+    });
+    switch (i) {
+      case 0:
+        break;
+      case 1:
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const ClassListScreen()),
+        );
+        break;
+    }
   }
 }

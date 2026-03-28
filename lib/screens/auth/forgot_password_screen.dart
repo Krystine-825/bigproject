@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../core/validators.dart';
 import '../../widgets/common/custom_text_field.dart';
+import '../../controllers/auth_controller.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -13,6 +14,8 @@ class ForgotPasswordScreen extends StatefulWidget {
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final _emailCtrl = TextEditingController();
   bool _sent = false;
+  final authController = AuthController();
+  bool isLoading = false;
 
   @override
   void dispose() {
@@ -136,37 +139,71 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         width: double.infinity,
         height: 56,
         child: ElevatedButton(
-          onPressed: () {
-            final error = Validators.email(_emailCtrl.text.trim());
-            if (error != null) {
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                content: Text(error),
-                backgroundColor: AppColors.error,
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
-              ));
-              return;
-            }
-            setState(() => _sent = true);
-            // TODO: Firebase forgot password
-          },
+          onPressed: isLoading ? null : handleSendReset,
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.primary,
             foregroundColor: AppColors.white,
             shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(24)),
+              borderRadius: BorderRadius.circular(24),
+            ),
             elevation: 4,
             shadowColor: AppColors.primary.withOpacity(0.3),
           ),
-          child: const Text(
-            'Gửi yêu cầu',
-            style:
-                TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
+          child: isLoading
+              ? const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    color: AppColors.white,
+                    strokeWidth: 2.5,
+                  ),
+                )
+              : const Text(
+                  'Gửi yêu cầu',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
         ),
       ),
     );
+  }
+
+  Future<void> handleSendReset() async {
+    // Validate email trước
+    final error = Validators.email(_emailCtrl.text.trim());
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(error),
+        backgroundColor: AppColors.error,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ));
+      return;
+    }
+ 
+    setState(() => isLoading = true);
+ 
+  
+    final result = await authController.resetPassword(
+      _emailCtrl.text.trim(),
+    );
+ 
+    setState(() => isLoading = false);
+ 
+    if (!mounted) return;
+ 
+    if (result != null) {
+      // Có lỗi → hiện thông báo
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(result),
+        backgroundColor: AppColors.error,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ));
+      return;
+    }
+ 
+   
+    setState(() => _sent = true);
   }
 
   // Chỉ hiện sau khi gửi thành công
@@ -183,8 +220,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.check_circle_outline_rounded,
-                color: AppColors.success, size: 22),
+            const Icon(
+              Icons.check_circle_outline_rounded,
+              color: AppColors.success,
+              size: 22,
+            ),
             const SizedBox(width: 12),
             const Expanded(
               child: Column(

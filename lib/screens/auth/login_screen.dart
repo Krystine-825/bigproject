@@ -6,6 +6,8 @@ import 'register_screen.dart';
 import 'forgot_password_screen.dart';
 import '../teacher/dashboard_screen.dart';
 import 'profile_screen.dart';
+import '../../controllers/auth_controller.dart';
+import '../student/student_home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -18,6 +20,8 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   bool _hidePass = true;
+  final authController = AuthController();
+  bool isLoading = false;
 
   @override
   void dispose() {
@@ -179,29 +183,7 @@ class _LoginScreenState extends State<LoginScreen> {
         width: double.infinity,
         height: 56,
         child: ElevatedButton(
-          onPressed: () {
-            final error =
-                Validators.email(_emailCtrl.text.trim()) ??
-                Validators.password(_passCtrl.text.trim());
-            if (error != null) {
-              _showError(error);
-              return;
-            }
-            // Test tạm với data
-            const testEmail = 'test@gmail.com';
-            const testPass = '12345678';
-
-            if (_emailCtrl.text.trim() == testEmail &&
-                _passCtrl.text.trim() == testPass) {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (_) => const DashboardScreen()),
-              );
-            } else {
-              _showError('Email hoặc mật khẩu không đúng');
-            }
-            // TODO: Firebase login
-          },
+          onPressed: isLoading ? null: handleLogin, 
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.primary,
             foregroundColor: AppColors.white,
@@ -209,13 +191,53 @@ class _LoginScreenState extends State<LoginScreen> {
             elevation: 4,
             shadowColor: AppColors.primary.withOpacity(0.4),
           ),
-          child: const Text(
+          child: isLoading?const SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.5,
+             color: AppColors.white,
+            ),
+          )
+           : const Text(
             'Đăng nhập',
             style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
           ),
         ),
       ),
     );
+  }
+  Future<void> handleLogin() async {
+    final val = Validators.email(_emailCtrl.text.trim())?? Validators.password(_passCtrl.text.trim());
+     if(val!=null){
+      _showError(val);
+      return;
+     }
+    setState(() => isLoading = true);
+    final res = await authController.login(
+      email: _emailCtrl.text.trim(),
+      password: _passCtrl.text.trim(),
+    );
+    setState(() => isLoading = false);
+    if (res != null) {
+      _showError(res);
+      return;
+    } 
+    
+    final role = await authController.getRole();
+    if(!mounted) return;
+    if (role == 'teacher') {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const DashboardScreen()),
+      );
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const StudentHomeScreen()),
+      );
+    }
+
   }
 
   Widget _divider() {
@@ -244,7 +266,7 @@ class _LoginScreenState extends State<LoginScreen> {
         width: double.infinity,
         height: 56,
         child: OutlinedButton(
-          onPressed: () {
+          onPressed: (){
             // TODO: Google sign in (v2.0)
             //test trước khi có firevase
             Navigator.pushReplacement(
@@ -281,6 +303,7 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
+
 
   Widget _footer() {
     return Padding(

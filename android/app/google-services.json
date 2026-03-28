@@ -1,0 +1,90 @@
+{
+  "project_info": {
+    "project_number": "927178680548",
+    "project_id": "bigproject-825",
+    "storage_bucket": "bigproject-825.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:927178680548:android:8b425f9c787aeda3b5a4f1",
+        "android_client_info": {
+          "package_name": "com.example.bigproject"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "927178680548-32r2m686ruc7lv7kua249aue8572krbn.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.bigproject",
+            "certificate_hash": "4559e91c797ffeb66e6f18919b4e3faf70dad7f9"
+          }
+        },
+        {
+          "client_id": "927178680548-vdss7nqhqos0q83nopq3ijksgsup8v1h.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAE8bMBT6WrHRCCRCMaaeSxAZX-Oh2jxEM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "927178680548-vdss7nqhqos0q83nopq3ijksgsup8v1h.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "927178680548-vpur2m6ti5g2k7on3uf6eaf7qoiosi5g.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.bigproject"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:927178680548:android:dbfcbf5dc2cf1b64b5a4f1",
+        "android_client_info": {
+          "package_name": "com.example.edu_exam"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "927178680548-vdss7nqhqos0q83nopq3ijksgsup8v1h.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAE8bMBT6WrHRCCRCMaaeSxAZX-Oh2jxEM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "927178680548-vdss7nqhqos0q83nopq3ijksgsup8v1h.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "927178680548-vpur2m6ti5g2k7on3uf6eaf7qoiosi5g.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.bigproject"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
