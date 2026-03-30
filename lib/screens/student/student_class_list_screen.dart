@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../widgets/common/custom_button_nav_student.dart';
 import 'join_class_screen.dart';
+import '../../controllers/class_controller.dart';
+import '../../data/models/class_model.dart';
 
 class StudentClassListScreen extends StatefulWidget {
   const StudentClassListScreen({super.key});
@@ -12,8 +14,9 @@ class StudentClassListScreen extends StatefulWidget {
 
 class _StudentClassListScreenState extends State<StudentClassListScreen> {
   final searchController = TextEditingController();
+  final _classCtrl = ClassController();
 
-  final List<Map<String, dynamic>> classList = [
+  /*final List<Map<String, dynamic>> classList = [
     {
       'name': '12A1 - B1',
       'teacher': 'GV: Nguyễn Văn A',
@@ -38,7 +41,9 @@ class _StudentClassListScreenState extends State<StudentClassListScreen> {
       'status': 'completed',
       'newCount': 0,
     },
-  ];
+  ];*/
+
+
 
   @override
   void dispose() {
@@ -166,15 +171,37 @@ class _StudentClassListScreenState extends State<StudentClassListScreen> {
   }
 
   Widget _classList() {
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
-      itemCount: classList.length,
-      itemBuilder: (context, index) => classCard(classList[index]),
+    return StreamBuilder<List<ClassModel>>(
+      stream: _classCtrl.getStudentClassesStream(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+        }
+        if (snapshot.hasError) {
+          return Center(child: Text('Lỗi: ${snapshot.error}'));
+        }
+
+        final classes = snapshot.data ?? [];
+        if (classes.isEmpty) {
+          return const Center(
+            child: Text('Bạn chưa tham gia lớp học nào.', style: TextStyle(color: AppColors.textMedium)),
+          );
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
+          itemCount: classes.length,
+          itemBuilder: (context, index) => classCard(classes[index]), // Truyền ClassModel thật
+        );
+      },
     );
   }
 
-  Widget classCard(Map<String, dynamic> cls) {
-    final isCompleted = cls['status'] == 'completed';
+  Widget classCard(ClassModel cls) {
+    
+    final bool isCompleted = false;
+    final int newCount = 0; 
+    final int exams = 0;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -220,7 +247,7 @@ class _StudentClassListScreenState extends State<StudentClassListScreen> {
                       children: [
                         Expanded(
                           child: Text(
-                            cls['name'],
+                            cls.name, // Đã đổi thành .name
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
@@ -228,7 +255,7 @@ class _StudentClassListScreenState extends State<StudentClassListScreen> {
                             ),
                           ),
                         ),
-                        if (cls['newCount'] > 0)
+                        if (newCount > 0) // Dùng biến cục bộ ở trên
                           Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 8,
@@ -239,7 +266,7 @@ class _StudentClassListScreenState extends State<StudentClassListScreen> {
                               borderRadius: BorderRadius.circular(999),
                             ),
                             child: Text(
-                              '${cls['newCount']} mới',
+                              '$newCount mới',
                               style: const TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
@@ -251,10 +278,11 @@ class _StudentClassListScreenState extends State<StudentClassListScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      cls['teacher'],
+                      'Mã lớp: ${cls.code}', // Đã đổi thành .code
                       style: const TextStyle(
                         fontSize: 12,
                         color: AppColors.textMedium,
+                        fontWeight: FontWeight.w600
                       ),
                     ),
                   ],
@@ -267,25 +295,25 @@ class _StudentClassListScreenState extends State<StudentClassListScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '${cls['exams']} đề thi',
+                '$exams đề thi',
                 style: const TextStyle(
                   fontSize: 13,
                   color: AppColors.textMedium,
                 ),
               ),
               if (isCompleted)
-                Text(
-                  'Hoàn tất ${cls['completed']}',
-                  style: const TextStyle(
+                const Text(
+                  'Đã hoàn tất',
+                  style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                     color: Color(0xFF10B981),
                   ),
                 )
               else
-                Text(
-                  '${cls['completed']} hoàn thành',
-                  style: const TextStyle(
+                const Text(
+                  'Chưa có đề',
+                  style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                     color: AppColors.primary,
@@ -301,8 +329,10 @@ class _StudentClassListScreenState extends State<StudentClassListScreen> {
       ),
     );
   }
+        
+  }
 
   Widget bottomNav() {
     return const CustomBottomNavSt(currentIndex: 1); // Tab Lớp học đang active
   }
-}
+
