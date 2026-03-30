@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../widgets/common/custom_button_nav_student.dart';
 import '../../controllers/auth_controller.dart';
+import '../auth/login_screen.dart';
 
 class StudentHomeScreen extends StatefulWidget {
   const StudentHomeScreen({super.key});
@@ -169,7 +170,11 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
             onPressed: () async {
               await authCtrl.signOut();
               if (!mounted) return;
-              Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+              Navigator.pushAndRemoveUntil(
+               context,
+               MaterialPageRoute(builder: (_) => const LoginScreen()),
+               (route) => false,
+             );
             },
             icon: const Icon(Icons.logout_rounded, color: AppColors.textLight, size: 22),
           ),

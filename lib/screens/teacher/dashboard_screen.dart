@@ -8,7 +8,7 @@ import '../../controllers/class_controller.dart';
 import '../../data/models/class_model.dart';
 import 'package:bigproject/controllers/auth_controller.dart'; //
 import 'package:bigproject/core/app_colors.dart'; //
-
+import '../auth/login_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -162,7 +162,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
               await authCtrl.signOut();
               if (!mounted) return;
               // Xóa sạch lịch sử điều hướng và về màn hình Login
-              Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+              Navigator.pushAndRemoveUntil(
+               context,
+               MaterialPageRoute(builder: (_) => const LoginScreen()),
+               (route) => false,
+             );
             },
             icon: const Icon(Icons.logout_rounded, color: AppColors.textLight, size: 22),
           ),
