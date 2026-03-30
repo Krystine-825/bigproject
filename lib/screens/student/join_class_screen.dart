@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../widgets/common/custom_text_field.dart';
+import '../../controllers/class_controller.dart';
 
 class JoinClassScreen extends StatefulWidget {
   const JoinClassScreen({super.key});
@@ -13,6 +14,9 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
   final classCodeController = TextEditingController();
   final passwordController = TextEditingController();
   bool hidePassword = true;
+  
+  final _classCtrl = ClassController(); 
+  bool _isLoading = false; 
 
   @override
   void dispose() {
@@ -180,40 +184,52 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
         width: double.infinity,
         height: 56,
         child: ElevatedButton(
-          onPressed: () {
-            // TODO: Logic tham gia lớp (sẽ gọi Controller sau)
+          onPressed: _isLoading ? null : () async {
             final code = classCodeController.text.trim();
             if (code.isEmpty) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Vui lòng nhập mã lớp'),
-                  backgroundColor: AppColors.error,
-                ),
+                const SnackBar(content: Text('Vui lòng nhập mã lớp'), backgroundColor: AppColors.error),
               );
               return;
             }
 
-            // Tạm thời thông báo để test UI
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Đang tham gia lớp... (Chưa kết nối backend)'),
-                backgroundColor: AppColors.primary,
-              ),
+            setState(() => _isLoading = true);
+
+            final error = await _classCtrl.joinClass(
+              code: code,
+              password: passwordController.text.trim(),
             );
+
+            setState(() => _isLoading = false);
+            if (!context.mounted) return;
+
+            if (error != null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(error), backgroundColor: AppColors.error),
+              );
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Tham gia lớp thành công!'), backgroundColor: AppColors.success),
+              );
+              Navigator.pop(context); // Quay về màn hình trước
+            }
           },
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.primary,
             foregroundColor: AppColors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(28),
-            ),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
             elevation: 4,
             shadowColor: AppColors.primary.withOpacity(0.3),
           ),
-          child: const Text(
-            'Tham gia lớp',
-            style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-          ),
+          child: _isLoading 
+            ? const SizedBox(
+                width: 24, height: 24,
+                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+              )
+            : const Text(
+                'Tham gia lớp',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+              ),
         ),
       ),
     );

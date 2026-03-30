@@ -45,6 +45,26 @@ class ClassController {
             .toList());
   }
 
+  Stream<List<ClassModel>> getStudentClassesStream() {
+    return fireStoreService
+        .streamWhere('class_members', field: 'student_id', isEqualTo: _myUid)
+        .asyncMap((snap) async {
+          if (snap.docs.isEmpty) return <ClassModel>[];
+          
+          List<ClassModel> classes = [];
+          for (var doc in snap.docs) {
+            final data = doc.data();
+            // Chỉ lấy những lớp đang active (chưa bị kick)
+            if (data['status'] == 'active') {
+              final classDoc = await fireStoreService.getDocument('classes', data['class_id']);
+              if (classDoc.exists) {
+                classes.add(ClassModel.fromJson(classDoc.data() as Map<String, dynamic>, id: classDoc.id));
+              }
+            }
+          }
+          return classes;
+        });
+  }
 
   Future<Map<String, int>> getDashboardStats() async {
     try {
