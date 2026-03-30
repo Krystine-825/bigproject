@@ -6,8 +6,7 @@ import 'register_screen.dart';
 import 'forgot_password_screen.dart';
 import '../teacher/dashboard_screen.dart';
 import 'profile_screen.dart';
-import '../../../auth_service.dart'; 
-import '../../../main.dart';
+import '../../controllers/auth_controller.dart';
 import '../student/student_home_screen.dart';
 
 
@@ -22,6 +21,8 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   bool _hidePass = true;
+  final authController = AuthController();
+  bool isLoading = false;
 
   @override
   void dispose() {
@@ -134,6 +135,7 @@ class _LoginScreenState extends State<LoginScreen> {
             type: TextInputType.emailAddress,
           ),
           const SizedBox(height: 12),
+          // Dòng label + quên mật khẩu nằm ngoài CustomTextField
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -160,6 +162,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ],
           ),
           const SizedBox(height: 8),
+          // Dùng CustomTextField nhưng ẩn label vì đã có ở trên
           CustomTextField(
             label: '',
             hint: 'Nhập mật khẩu của bạn',
@@ -174,7 +177,6 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // NÚT ĐĂNG NHẬP ĐÃ ĐƯỢC GẮN BACKEND
   Widget _loginBtn() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
@@ -182,52 +184,7 @@ class _LoginScreenState extends State<LoginScreen> {
         width: double.infinity,
         height: 56,
         child: ElevatedButton(
-          onPressed: () async {
-            final error =
-                Validators.email(_emailCtrl.text.trim()) ??
-                Validators.password(_passCtrl.text.trim());
-            if (error != null) {
-              _showError(error);
-              return;
-            }
-
-            
-            String? result = await AuthService().login(
-              email: _emailCtrl.text.trim(),
-              password: _passCtrl.text.trim(),
-            );
-
-            
-            if (result == "Success") {
-              if (mounted) {
-                try {
-                  
-                  final userDoc = await AuthService().getUserProfile();
-                  if (userDoc.exists) {
-                    final role = userDoc.get('role');
-                  
-
-                    if (role == 'teacher') {
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(builder: (_) => const DashboardScreen()),
-                      );
-                    } else {
-                      
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(builder: (_) => const StudentHomeScreen()),
-                      );
-                    }
-                  }
-                } catch (e) {
-                  _showError("Không thể tải thông tin hồ sơ.");
-                }
-              }
-            } else {
-              _showError(result!); 
-            }
-          },
+          onPressed: isLoading ? null: handleLogin, 
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.primary,
             foregroundColor: AppColors.white,
@@ -235,13 +192,53 @@ class _LoginScreenState extends State<LoginScreen> {
             elevation: 4,
             shadowColor: AppColors.primary.withOpacity(0.4),
           ),
-          child: const Text(
+          child: isLoading?const SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.5,
+             color: AppColors.white,
+            ),
+          )
+           : const Text(
             'Đăng nhập',
             style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
           ),
         ),
       ),
     );
+  }
+  Future<void> handleLogin() async {
+    final val = Validators.email(_emailCtrl.text.trim())?? Validators.password(_passCtrl.text.trim());
+     if(val!=null){
+      _showError(val);
+      return;
+     }
+    setState(() => isLoading = true);
+    final res = await authController.login(
+      email: _emailCtrl.text.trim(),
+      password: _passCtrl.text.trim(),
+    );
+    setState(() => isLoading = false);
+    if (res != null) {
+      _showError(res);
+      return;
+    } 
+    
+    final role = await authController.getRole();
+    if(!mounted) return;
+    if (role == 'teacher') {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const DashboardScreen()),
+      );
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const StudentHomeScreen()),
+      );
+    }
+
   }
 
   Widget _divider() {
@@ -271,25 +268,36 @@ class _LoginScreenState extends State<LoginScreen> {
         height: 56,
         child: OutlinedButton(
           onPressed: () async {
-            String result = await AuthService().signInWithGoogle();
             
-            if (!context.mounted) return;
+            setState(() => isLoading = true);
+            
+            final result = await authController.signInWithGoogle();
+            
+            setState(() => isLoading = false);
+            if (!mounted) return;
 
-            if (result == "existing") {
-              // Người cũ -> Đá thẳng vào AuthWrapper để tự động chia luồng (Dashboard/StudentHome)
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (_) => const AuthWrapper()),
-                (route) => false,
-              );
-            } else if (result == "new") {
-              // Người mới tinh -> Chuyển sang màn hình chọn Role và nhập thông tin
+            if (result == 'cancel') {
+              return; 
+            } else if (result == 'new_user') {
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(builder: (_) => const CompleteProfileScreen()),
               );
-            } else if (result == "error") {
-              _showError("Đăng nhập Google thất bại.");
+            } else if (result == null) {
+              final role = await authController.getRole();
+              if (role == 'teacher') {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => const DashboardScreen()),
+                );
+              } else {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => const StudentHomeScreen()),
+                );
+              }
+            } else {
+              _showError(result); 
             }
           },
           style: OutlinedButton.styleFrom(
@@ -321,6 +329,7 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
+
 
   Widget _footer() {
     return Padding(

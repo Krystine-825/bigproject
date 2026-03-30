@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../core/validators.dart';
 import '../../widgets/common/custom_text_field.dart';
-import '../../../auth_service.dart'; // Thêm import AuthService
+import '../../controllers/auth_controller.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -14,6 +14,8 @@ class ForgotPasswordScreen extends StatefulWidget {
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final _emailCtrl = TextEditingController();
   bool _sent = false;
+  final authController = AuthController();
+  bool isLoading = false;
 
   @override
   void dispose() {
@@ -34,7 +36,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               _titleSection(),
               _emailInput(),
               _submitBtn(),
-              if (_sent) _successBox(), // Sẽ hiện ra khi gửi thành công
+              if (_sent) _successBox(),
             ],
           ),
         ),
@@ -75,7 +77,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       child: Container(
         width: 96,
         height: 96,
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: AppColors.primaryLight,
           shape: BoxShape.circle,
         ),
@@ -130,7 +132,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     );
   }
 
-  // --- NÚT GỬI YÊU CẦU ĐÃ GẮN BACKEND ---
   Widget _submitBtn() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
@@ -138,57 +139,71 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         width: double.infinity,
         height: 56,
         child: ElevatedButton(
-          onPressed: () async { // Thêm async
-            final error = Validators.email(_emailCtrl.text.trim());
-            if (error != null) {
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                content: Text(error),
-                backgroundColor: AppColors.error,
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
-              ));
-              return;
-            }
-
-            // Gọi hàm Backend gửi email reset mật khẩu
-            String? result = await AuthService().resetPassword(_emailCtrl.text.trim());
-
-            if (result == "Success") {
-              if (mounted) {
-                // Cập nhật trạng thái để hiện hộp thoại báo thành công (_successBox)
-                setState(() => _sent = true);
-                
-                // Thu bàn phím xuống cho UI đẹp hơn
-                FocusScope.of(context).unfocus(); 
-              }
-            } else {
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                  content: Text(result!),
-                  backgroundColor: AppColors.error,
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
-                ));
-              }
-            }
-          },
+          onPressed: isLoading ? null : handleSendReset,
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.primary,
             foregroundColor: AppColors.white,
             shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(24)),
+              borderRadius: BorderRadius.circular(24),
+            ),
             elevation: 4,
             shadowColor: AppColors.primary.withOpacity(0.3),
           ),
-          child: const Text(
-            'Gửi yêu cầu',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
+          child: isLoading
+              ? const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    color: AppColors.white,
+                    strokeWidth: 2.5,
+                  ),
+                )
+              : const Text(
+                  'Gửi yêu cầu',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
         ),
       ),
     );
+  }
+
+  Future<void> handleSendReset() async {
+    // Validate email trước
+    final error = Validators.email(_emailCtrl.text.trim());
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(error),
+        backgroundColor: AppColors.error,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ));
+      return;
+    }
+ 
+    setState(() => isLoading = true);
+ 
+  
+    final result = await authController.resetPassword(
+      _emailCtrl.text.trim(),
+    );
+ 
+    setState(() => isLoading = false);
+ 
+    if (!mounted) return;
+ 
+    if (result != null) {
+      // Có lỗi → hiện thông báo
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(result),
+        backgroundColor: AppColors.error,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ));
+      return;
+    }
+ 
+   
+    setState(() => _sent = true);
   }
 
   // Chỉ hiện sau khi gửi thành công
@@ -202,13 +217,16 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           border: Border.all(color: AppColors.successBorder),
           borderRadius: BorderRadius.circular(16),
         ),
-        child: const Row(
+        child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.check_circle_outline_rounded,
-                color: AppColors.success, size: 22),
-            SizedBox(width: 12),
-            Expanded(
+            const Icon(
+              Icons.check_circle_outline_rounded,
+              color: AppColors.success,
+              size: 22,
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [

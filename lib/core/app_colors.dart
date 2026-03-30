@@ -20,4 +20,23 @@ class AppColors {
   static const successDark = Color(0xFF065F46);
   static const successMid = Color(0xFF047857);
   static const error = Colors.redAccent;
+
+ static const List<Color> avatarBgColors = [
+    Color(0xFFDBEAFE), 
+    Color(0xFFEDE9FE), 
+    Color(0xFFD1FAE5), 
+    Color(0xFFFEF3C7), 
+    Color(0xFFFFE4E6), 
+    Color(0xFFE0E7FF), 
+  ];
+ 
+
+  static const List<Color> avatarTextColors = [
+    Color(0xFF2563EB), 
+    Color(0xFF7C3AED), 
+    Color(0xFF059669), 
+    Color(0xFFD97706), 
+    Color(0xFFE11D48), 
+    Color(0xFF4338CA), 
+  ];
 }

@@ -3,7 +3,7 @@ import '../../core/app_colors.dart';
 import '../../core/validators.dart';
 import '../../widgets/common/custom_text_field.dart';
 import 'login_screen.dart';
-import '../../../auth_service.dart'; // Import AuthService để gọi Backend
+import '../../controllers/auth_controller.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -21,6 +21,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _hideConfirm = true;
   String _role = 'student';
   bool _agreed = false;
+  final authController = AuthController();
+  bool isLoading = false;
+
 
   @override
   void dispose() {
@@ -308,7 +311,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  // Khối code nút bấm chứa logic Đăng ký (Backend)
   Widget _registerBtn() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
@@ -316,7 +318,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         width: double.infinity,
         height: 56,
         child: ElevatedButton(
-          onPressed: () async {
+          onPressed: isLoading? null : () async {
             final error =
                 Validators.name(_nameCtrl.text.trim()) ??
                 Validators.email(_emailCtrl.text.trim()) ??
@@ -327,35 +329,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 (_agreed
                     ? null
                     : 'Vui lòng đồng ý với điều khoản dịch vụ');
-            
             if (error != null) {
               _showError(error);
               return;
             }
-
-            
-            String? result = await AuthService().register(
+            // TODO: Firebase register
+            setState(() => isLoading = true);
+            final result = await authController.register(
+              name: _nameCtrl.text.trim(),
               email: _emailCtrl.text.trim(),
               password: _passCtrl.text.trim(),
-              fullName: _nameCtrl.text.trim(),
-              role: _role, 
+              role: _role,
             );
-
-           
-            if (result == "Success") {
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                  content: Text("Đăng ký thành công!"),
-                  backgroundColor: AppColors.success,
-                ));
-                Navigator.pushReplacement(
-                  context, 
-                  MaterialPageRoute(builder: (_) => const LoginScreen())
-                );
-              }
-            } else {
-              _showError(result!);
+            setState(() => isLoading = false);
+            if (result != null) {
+              _showError(result);
             }
+
+            if(!mounted) return;
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
           },
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.primary,
@@ -365,9 +357,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
             elevation: 4,
             shadowColor: AppColors.primary.withOpacity(0.4),
           ),
-          child: const Text(
+          child: isLoading
+              ? const SizedBox(
+                  width: 24, height: 24,
+                  child: CircularProgressIndicator(
+                      color: Colors.white, strokeWidth: 2.5),
+                )
+           : const Text(
             'Đăng ký ngay',
-            style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+            style:
+                TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
           ),
         ),
       ),
