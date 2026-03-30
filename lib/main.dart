@@ -1,20 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'firebase_options.dart';
-import 'auth_service.dart';
+import 'core/app_colors.dart';
 import 'screens/auth/onboarding_screen.dart';
+import 'screens/auth/login_screen.dart';
 import 'screens/teacher/dashboard_screen.dart';
 import 'screens/student/student_home_screen.dart';
+import 'controllers/auth_controller.dart';
 
 void main() async {
-  
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  
   runApp(const MyApp());
 }
 
@@ -28,58 +27,56 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF007BFF)),
-        fontFamily: 'Lexend',
+        fontFamily: 'Lexend', 
         useMaterial3: true,
       ),
-      home: const AuthWrapper(), // Trỏ về AuthWrapper để tự động điều hướng
+      home: const OnboardingScreen(),
     );
   }
 }
+
 
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
 
   @override
   Widget build(BuildContext context) {
+    // chờ trạng thái đăng nhập từ Firebase
     return StreamBuilder<User?>(
-      stream: AuthService().userStatus,
+      stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
-        // 1. Nếu chưa đăng nhập -> Hiện Onboarding của nhóm
-        if (!snapshot.hasData) return const OnboardingScreen();
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator(color: AppColors.primary)),
+          );
+        }
 
-        // 2. Nếu đã đăng nhập -> Kiểm tra Role từ Firestore
-        return FutureBuilder<DocumentSnapshot>(
-          future: AuthService().getUserProfile(),
-          builder: (context, userSnapshot) {
-            if (userSnapshot.connectionState == ConnectionState.waiting) {
-              return const Scaffold(
-                backgroundColor: Colors.white,
-                body: Center(child: CircularProgressIndicator(color: Color(0xFF007BFF))),
-              );
-            }
-
-            if (userSnapshot.hasData && userSnapshot.data!.exists) {
-              String role = userSnapshot.data!.get('role');
-              // Điều hướng theo Role
-              if (role == 'teacher') {
-                return const DashboardScreen(); // Vào màn hình Giáo viên
-              } else {
-                if (userSnapshot.hasData && userSnapshot.data!.exists) {
-                  String role = userSnapshot.data!.get('role');
-                  // Điều hướng theo Role
-                  if (role == 'teacher') {
-                    return const DashboardScreen(); 
-                  } else {
-                    // THAY THẾ DÒNG CŨ BẰNG DÒNG NÀY:
-                    return const StudentHomeScreen(); 
-                  }
-                } 
+        // Nếu người dùng ĐÃ đăng nhập từ trước
+        if (snapshot.hasData && snapshot.data != null) {
+          return FutureBuilder<String?>(
+            future: AuthController().getRole(),
+            builder: (context, roleSnapshot) {
+              if (roleSnapshot.connectionState == ConnectionState.waiting) {
+                return const Scaffold(
+                  body: Center(child: CircularProgressIndicator(color: AppColors.primary)),
+                );
               }
-            }
-            // Mặc định trả về Onboarding nếu có lỗi không lấy được data
-            return const OnboardingScreen();
-          },
-        );
+
+              final role = roleSnapshot.data;
+              // Tự động phân luồng dựa trên Role
+              if (role == 'teacher') {
+                return const DashboardScreen();
+              } else if (role == 'student') {
+                return const StudentHomeScreen();
+              } else {
+                return const LoginScreen();
+              }
+            },
+          );
+        }
+
+        // Nếu chưa đăng nhập thì Hiện màn hình Giới thiệu
+        return const OnboardingScreen();
       },
     );
   }

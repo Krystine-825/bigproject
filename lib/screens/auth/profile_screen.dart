@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../widgets/common/custom_text_field.dart';
 import '../teacher/dashboard_screen.dart';
-//import '../student/student_home_screen.dart';
-import '../../../auth_service.dart'; 
-import '../../../main.dart';
+import '../student/student_home_screen.dart';
+import '../../controllers/auth_controller.dart';
 
 class CompleteProfileScreen extends StatefulWidget {
   const CompleteProfileScreen({super.key});
@@ -17,12 +16,36 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   final _nameCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
   String _role = 'student';
+  final authCtrl = AuthController();
+  bool isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final currentUser = authCtrl.authService.currentUser;
+    if (currentUser != null) {
+      if (currentUser.displayName != null) {
+        _nameCtrl.text = currentUser.displayName!;
+      }
+      
+    }
+  }
 
   @override
   void dispose() {
     _nameCtrl.dispose();
     _phoneCtrl.dispose();
     super.dispose();
+  }
+
+void _showError(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg),
+      backgroundColor: AppColors.error,
+      behavior: SnackBarBehavior.floating,
+      shape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    ));
   }
 
   @override
@@ -33,7 +56,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         child: Column(
           children: [
             _topBar(),
-            
+            // Expanded chia đều phần còn lại cho nội dung
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -246,33 +269,20 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         width: double.infinity,
         height: 56,
         child: ElevatedButton.icon(
-          onPressed: () async {
-            // 1. Thu thập dữ liệu từ các ô nhập liệu
-            String name = _nameCtrl.text.trim();
-            String phone = _phoneCtrl.text.trim();
-            
-            // (Bạn có thể thêm hàm kiểm tra Validator ở đây nếu cần, ví dụ bắt buộc nhập tên)
-            
-            // 2. Gọi hàm lưu lên Firestore
-            await AuthService().completeUserProfile(
-              name: name,
-              phone: phone,
-              role: _role, // Biến _role này thay đổi khi người dùng click vào thẻ Giáo viên/Học sinh
-            );
-
-            if (!context.mounted) return;
-            
-            // 3. Đăng ký thành công -> Đẩy về AuthWrapper
-            // AuthWrapper sẽ quét Database, thấy role vừa lưu và đẩy họ vào đúng màn hình!
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(builder: (_) => const AuthWrapper()),
-              (route) => false,
-            );
-          },
-          icon: const Icon(Icons.arrow_forward_rounded),
-          label: const Text(
-            'Bắt đầu ngay',
+          onPressed: isLoading ? null : saveProfile, 
+            // TODO: lưu profile lên Firestore
+          icon: isLoading
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    color: AppColors.white,
+                  ),
+                )
+              : const Icon(Icons.arrow_forward_rounded),
+          label: Text(
+           isLoading ? 'Đang lưu...' : 'Bắt đầu ngay',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
           style: ElevatedButton.styleFrom(
@@ -287,4 +297,45 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       ),
     );
   }
+
+  void saveProfile() async {
+    if(_nameCtrl.text.trim().isEmpty){
+      _showError('Vui lòng nhập họ và tên');
+      return;
+    }
+  
+    setState(() => isLoading = true);
+ 
+  
+    final error = await authCtrl.saveProfile(
+      name:  _nameCtrl.text.trim(),
+      role:  _role,
+      phone: _phoneCtrl.text.trim(), 
+    );
+ 
+
+    setState(() => isLoading = false);
+ 
+    
+    if (!mounted) return;
+ 
+  
+    if (error != null) {
+      _showError(error);
+      return;
+    }
+ 
+    if (_role == 'teacher') {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const DashboardScreen()),
+      );
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const StudentHomeScreen()),
+      );
+    }
+    
+   }
 }
