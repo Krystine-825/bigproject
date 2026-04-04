@@ -5,7 +5,7 @@ class ClassModel {
   final String teacherId;
   final String? passwordHash;
 
-   const ClassModel({
+  const ClassModel({
     required this.id,
     required this.name,
     required this.code,
@@ -28,7 +28,9 @@ class ClassModel {
       'name': name,
       'code': code,
       'teacher_id': teacherId,
-      if (passwordHash != null && passwordHash!.isNotEmpty) 'password_hash': passwordHash,
+      'created_at': DateTime.now().toIso8601String(), // thêm để sort được
+      if (passwordHash != null && passwordHash!.isNotEmpty)
+        'password_hash': passwordHash,
     };
   }
 }

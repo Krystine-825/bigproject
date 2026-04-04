@@ -6,6 +6,8 @@ import '../data/models/user_model.dart';
 class AuthController {
   final authService = AuthService();
   final fireStoreService = FireStoreService();
+  String userName = "";
+
   Future<String?> register({
     required String name,
     required String email,
@@ -49,12 +51,35 @@ class AuthController {
     }
 
   }
+
+  Future<String?> signInWithGoogle() async {
+    try {
+      
+      final userCredential = await authService.signInWithGoogle();
+      
+      if (userCredential == null) return 'cancel';
+
+      final uid = userCredential.user!.uid;
+      final doc = await fireStoreService.getDocument('users', uid);
+
+      if (doc.exists) {
+        return null; 
+      } else {
+        return 'new_user'; 
+      }
+    } on FirebaseAuthException catch (e) {
+      return translateError(e.code);
+    } catch (_) {
+      return 'Đăng nhập Google thất bại. Vui lòng thử lại.';
+    }
+  }
+
   Future<String> getUserName() async {
   final uid = authService.currentUid;
   if (uid == null) return '';
   final doc = await fireStoreService.getDocument('users', uid);
   return doc.data()?['name'] as String? ?? '';
-}
+  }
    Future<String?> resetPassword(String email) async {
     try {
       await authService.sendPasswordResetEmail(email: email);
@@ -68,13 +93,19 @@ class AuthController {
 
 
    Future<String?> getRole() async {
-    final uid= authService.currentUid;
-    if(uid==null) return null;
-    final doc=await fireStoreService.getDocument('users',uid);
-    if(!doc.exists) return null;
-    return doc.data()?['role'] as String?;
-   }
+    final user = authService.currentUser; 
+    if (user == null) return null;
 
+    final doc = await fireStoreService.getDocument('users', user.uid);
+    if (doc.exists) {
+      final data = doc.data() as Map<String, dynamic>;
+      
+      userName = user.displayName ?? (data['name'] ?? ""); 
+      
+      return data['role'] as String?;
+    }
+    return null;
+  }
    Future<void> logout()=> authService.signOut();
 
    Future<String?> saveProfile({
@@ -114,5 +145,11 @@ class AuthController {
       case 'network-request-failed': return 'Mất kết nối mạng.';
       default:                       return 'Đã có lỗi xảy ra. Vui lòng thử lại.';
     }
+  }
+
+  // Hàm đăng xuất
+  Future<void> signOut() async {
+    await authService.signOut();
+    userName = ""; 
   }
 }

@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import '../../screens/teacher/dashboard_screen.dart';
 import '../../screens/teacher/class_list_screen.dart';
+import '../../screens/teacher/create_exam_screen.dart';
 
 class AppNavigator {
   static void handleBottomNavTap(BuildContext context, int index) {
@@ -15,6 +16,7 @@ class AppNavigator {
         break;
 
       case 2: // Tạo đề
+      _goToCreateExam(context);
         break;
 
       case 3: // Kho đề
@@ -51,4 +53,18 @@ class AppNavigator {
       );
     }
   }
+
+  static void _goToCreateExam(BuildContext context) {
+    final currentRoute = ModalRoute.of(context)?.settings.name;
+
+    if (currentRoute != '/create-exam') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const CreateExamScreen(),
+          settings: const RouteSettings(name: '/create-exam'),
+        ),
+      );
+    }
+}
 }

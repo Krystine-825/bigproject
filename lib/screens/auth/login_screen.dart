@@ -266,13 +266,38 @@ class _LoginScreenState extends State<LoginScreen> {
         width: double.infinity,
         height: 56,
         child: OutlinedButton(
-          onPressed: (){
-            // TODO: Google sign in (v2.0)
-            //test trước khi có firevase
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const CompleteProfileScreen()),
-            );
+            onPressed: () async {
+            
+            setState(() => isLoading = true);
+            
+            final result = await authController.signInWithGoogle();
+            
+            setState(() => isLoading = false);
+            if (!mounted) return;
+
+            if (result == 'cancel') {
+              return; 
+            } else if (result == 'new_user') {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => const CompleteProfileScreen()),
+              );
+            } else if (result == null) {
+              final role = await authController.getRole();
+              if (role == 'teacher') {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => const DashboardScreen()),
+                );
+              } else {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => const StudentHomeScreen()),
+                );
+              }
+            } else {
+              _showError(result); 
+            }
           },
           style: OutlinedButton.styleFrom(
             side: const BorderSide(color: AppColors.border),
