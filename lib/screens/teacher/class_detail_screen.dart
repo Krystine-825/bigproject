@@ -6,7 +6,7 @@ import '../../data/models/class_member_model.dart';
 import '../../controllers/class_controller.dart';
  
 class ClassDetailScreen extends StatefulWidget {
-  // THÊM classId để load thành viên thật từ Firestore
+
   final String classId;
   final String className;
   final String classCode;
@@ -46,7 +46,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen>
     super.dispose();
   }
  
-  // THÊM: lọc trên ClassMemberModel thay vì Map
+
   List<ClassMemberModel> _filterMembers(List<ClassMemberModel> members) {
     if (_searchText.isEmpty) return members;
     return members
@@ -56,14 +56,14 @@ class _ClassDetailScreenState extends State<ClassDetailScreen>
         .toList();
   }
  
-  // Lấy 2 chữ cái đầu của tên — hiện trong avatar (GIỮ NGUYÊN)
+  
   String _initials(String name) {
     final parts = name.trim().split(' ');
     if (parts.length == 1) return parts[0][0].toUpperCase();
     return (parts[parts.length - 2][0] + parts.last[0]).toUpperCase();
   }
  
-  // Copy mã lớp vào clipboard (GIỮ NGUYÊN)
+ 
   void _copyCode() {
     Clipboard.setData(ClipboardData(text: widget.classCode));
     ScaffoldMessenger.of(context).showSnackBar(
@@ -76,7 +76,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen>
     );
   }
  
-  // THÊM: kick thật qua Firebase, nhận ClassMemberModel thay vì String name
+ 
   void _showKickDialog(ClassMemberModel member) {
     final name = member.studentName ?? 'học sinh này';
     showDialog(
@@ -166,7 +166,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen>
     );
   }
  
-  // THÊM: header dùng StreamBuilder để hiện số thành viên thật
+ 
   Widget _buildHeader() {
     return Container(
       color: AppColors.white,
@@ -212,7 +212,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen>
     );
   }
  
-  // GIỮ NGUYÊN toàn bộ
+ 
   Widget _buildCodeCard() {
     return Container(
       margin: const EdgeInsets.all(16),
@@ -286,7 +286,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen>
     );
   }
  
-  // GIỮ NGUYÊN toàn bộ
+
   Widget _buildTabs() {
     return Container(
       color: AppColors.white,
@@ -312,7 +312,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen>
     );
   }
  
-  // GIỮ NGUYÊN toàn bộ
+
   Widget _buildMembersTab() {
     return Column(
       children: [
@@ -322,7 +322,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen>
     );
   }
  
-  // GIỮ NGUYÊN toàn bộ
+ 
   Widget _buildSearchBar() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
@@ -358,7 +358,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen>
     );
   }
  
-  // THÊM: dùng StreamBuilder thay list hardcode
+ 
   Widget _buildMembersList() {
     return StreamBuilder<List<ClassMemberModel>>(
       stream: classController.streamMembers(widget.classId),
@@ -403,7 +403,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen>
     );
   }
  
-  // THÊM: nhận ClassMemberModel thay Map — UI giữ nguyên 100%
+  
   Widget _buildMemberCard(ClassMemberModel member, int index) {
     final colorIndex = index % AppColors.avatarBgColors.length;
     final name  = member.studentName  ?? 'Không rõ';
@@ -464,7 +464,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen>
             ),
           ),
  
-          // Nút kick (GIỮ NGUYÊN UI, truyền member thay vì name)
+          
           GestureDetector(
             onTap: () => _showKickDialog(member),
             child: Container(
@@ -486,7 +486,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen>
     );
   }
  
-  // GIỮ NGUYÊN toàn bộ
+
   Widget _buildResultsTab() {
     return const Center(
       child: Column(
