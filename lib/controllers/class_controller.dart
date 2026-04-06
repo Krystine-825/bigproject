@@ -79,14 +79,14 @@ class ClassController {
   }
 
   
-  // Future<String?> deleteClass(String classId) async {
-  //   try {
-  //     await fireStoreService.deleteDocument('classes', classId);
-  //     return null;
-  //   } catch (_) {
-  //     return 'Không thể xóa lớp.';
-  //   }
-  // }
+  Future<String?> deleteClass(String classId) async {
+     try {
+       await fireStoreService.deleteDocument('classes', classId);
+       return null;
+     } catch (_) {
+       return 'Không thể xóa lớp.';
+     }
+   }
 
 
   Future<String?> kickStudent(String memberId) async {
