@@ -1,12 +1,15 @@
+
 import 'package:firebase_auth/firebase_auth.dart';
 import '../data/services/auth_service.dart';
 import '../data/services/firestore_service.dart';
 import '../data/models/user_model.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AuthController {
   final authService = AuthService();
   final fireStoreService = FireStoreService();
   String userName = "";
+
 
   Future<String?> register({
     required String name,
@@ -15,11 +18,19 @@ class AuthController {
     required String role,
   }) async {
     try {
+      
+      final isDuplicate = await checkEmailExists(email);
+      if (isDuplicate) {
+        return 'Email này đã được sử dụng trong hệ thống.';
+      }
+
+      
       final credential = await authService.createUser(
         email: email,
         password: password,
       );
 
+      
       final user = UserModel(
         uid: credential.user!.uid,
         name: name,
@@ -28,10 +39,11 @@ class AuthController {
       );
 
       await fireStoreService.setDocument('users', user.uid, user.toJson());
-      return null;
+      return null; // Đăng ký thành công
+      
     } on FirebaseAuthException catch (e) {
-          return translateError(e.code);
-    }catch (_){
+      return translateError(e.code);
+    } catch (_) {
       return 'Đăng ký thất bại. Vui lòng thử lại.';
     }
   }
@@ -106,7 +118,7 @@ class AuthController {
     }
     return null;
   }
-   Future<void> logout()=> authService.signOut();
+   
 
    Future<String?> saveProfile({
      required String name,
@@ -144,6 +156,22 @@ class AuthController {
       case 'too-many-requests':      return 'Thử lại quá nhiều lần. Vui lòng chờ.';
       case 'network-request-failed': return 'Mất kết nối mạng.';
       default:                       return 'Đã có lỗi xảy ra. Vui lòng thử lại.';
+    }
+  }
+
+  // Hàm kiểm tra xem email đã tồn tại trong database chưa
+  Future<bool> checkEmailExists(String email) async {
+    try {
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .where('email', isEqualTo: email)
+          .limit(1) 
+          .get();
+          
+      return querySnapshot.docs.isNotEmpty;
+    } catch (e) {
+      print("Lỗi kiểm tra email trùng: $e");
+      return true; 
     }
   }
 
