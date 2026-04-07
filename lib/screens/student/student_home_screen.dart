@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../widgets/common/custom_button_nav_student.dart';
-import '../../controllers/auth_controller.dart';
-import '../auth/login_screen.dart';
 
 class StudentHomeScreen extends StatefulWidget {
   const StudentHomeScreen({super.key});
@@ -12,8 +10,7 @@ class StudentHomeScreen extends StatefulWidget {
 }
 
 class _StudentHomeScreenState extends State<StudentHomeScreen> {
-  final authCtrl = AuthController();
-  //final String studentName = "Lê Văn Bình";
+  final String studentName = "Lê Văn Bình";
 
   final List<Map<String, dynamic>> stats = [
     {'count': '3', 'label': 'Chưa làm', 'color': Color(0xFFFF9800)},
@@ -94,11 +91,6 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
   }
 
   Widget header() {
-    // LẤY THÔNG TIN TỪ FIREBASE & GOOGLE
-    final user = authCtrl.authService.currentUser;
-    final String displayName = authCtrl.userName.isNotEmpty ? authCtrl.userName : (user?.displayName ?? 'Học sinh');
-    final String? photoUrl = user?.photoURL;
-
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
       child: Row(
@@ -117,14 +109,11 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                     child: ClipOval(
                       child: Container(
                         color: const Color(0xFFE2E8F0),
-                        // HIỂN THỊ ẢNH GOOGLE NẾU CÓ
-                        child: photoUrl != null
-                            ? Image.network(photoUrl, fit: BoxFit.cover)
-                            : const Icon(
-                                Icons.person_rounded,
-                                color: AppColors.textHint,
-                                size: 28,
-                              ),
+                        child: const Icon(
+                          Icons.person_rounded,
+                          color: AppColors.textHint,
+                          size: 28,
+                        ),
                       ),
                     ),
                   ),
@@ -151,9 +140,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                     'Chào buổi sáng,',
                     style: TextStyle(fontSize: 13, color: AppColors.textMedium),
                   ),
-                  // HIỂN THỊ TÊN THẬT
                   Text(
-                    displayName,
+                    studentName,
                     style: const TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.bold,
@@ -165,18 +153,25 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
             ],
           ),
           const Spacer(),
-          // THÊM NÚT ĐĂNG XUẤT CHO HỌC SINH
-          IconButton(
-            onPressed: () async {
-              await authCtrl.signOut();
-              if (!mounted) return;
-              Navigator.pushAndRemoveUntil(
-               context,
-               MaterialPageRoute(builder: (_) => const LoginScreen()),
-               (route) => false,
-             );
-            },
-            icon: const Icon(Icons.logout_rounded, color: AppColors.textLight, size: 22),
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.06),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons.notifications_outlined,
+              color: AppColors.textMedium,
+              size: 22,
+            ),
           ),
         ],
       ),

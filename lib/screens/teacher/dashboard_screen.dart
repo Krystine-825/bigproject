@@ -6,9 +6,6 @@ import '../../core/app_navigator.dart';
 import '../../controllers/auth_controller.dart';
 import '../../controllers/class_controller.dart';
 import '../../data/models/class_model.dart';
-import 'package:bigproject/controllers/auth_controller.dart'; //
-import 'package:bigproject/core/app_colors.dart'; //
-import '../auth/login_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -20,7 +17,7 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   int _selectedNav = 0;
   int _selectedClass = 0;
-  final authCtrl = AuthController();
+
   // Data tạm — sau thay bằng Firestore
   final _stats = [
     {'icon': Icons.school_rounded, 'label': 'Lớp học', 'value': '12'},
@@ -85,10 +82,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _header() {
-    final user = authCtrl.authService.currentUser;
-    final String displayName = authCtrl.userName.isNotEmpty ? authCtrl.userName : (user?.displayName ?? 'Người dùng');
-    final String? photoUrl = user?.photoURL;
-
     return Container(
       color: AppColors.white,
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
@@ -109,18 +102,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     child: ClipOval(
                       child: Container(
                         color: const Color(0xFFE2E8F0),
-                        
-                        child: photoUrl != null 
-                          ? Image.network(photoUrl, fit: BoxFit.cover)
-                          : const Icon(
-                              Icons.person_rounded,
-                              color: AppColors.textHint,
-                              size: 28,
-                            ),
+                        child: const Icon(
+                          Icons.person_rounded,
+                          color: AppColors.textHint,
+                          size: 28,
+                        ),
                       ),
                     ),
                   ),
-                  
+                  // Chấm xanh online
                   Positioned(
                     bottom: 0,
                     right: 0,
@@ -144,9 +134,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     'Xin chào,',
                     style: TextStyle(fontSize: 13, color: AppColors.textLight),
                   ),
-                  Text(
-                    displayName, 
-                    style: const TextStyle(
+                  const Text(
+                    'Nguyễn Văn A',
+                    style: TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.bold,
                       color: AppColors.textDark,
@@ -157,21 +147,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ],
           ),
           const Spacer(),
-          IconButton(
-            onPressed: () async {
-              await authCtrl.signOut();
-              if (!mounted) return;
-              // Xóa sạch lịch sử điều hướng và về màn hình Login
-              Navigator.pushAndRemoveUntil(
-               context,
-               MaterialPageRoute(builder: (_) => const LoginScreen()),
-               (route) => false,
-             );
-            },
-            icon: const Icon(Icons.logout_rounded, color: AppColors.textLight, size: 22),
-          ),
-          const SizedBox(width: 8),
-          // Nút thông báo (Giữ nguyên của nhóm)
+          // Nút thông báo
           Container(
             width: 40,
             height: 40,

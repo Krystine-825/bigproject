@@ -1,6 +1,6 @@
 {
-    "name": "bigproject",
-    "short_name": "bigproject",
+    "name": "edu_exam",
+    "short_name": "edu_exam",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

@@ -9,7 +9,6 @@ import 'profile_screen.dart';
 import '../../controllers/auth_controller.dart';
 import '../student/student_home_screen.dart';
 
-
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -267,7 +266,7 @@ class _LoginScreenState extends State<LoginScreen> {
         width: double.infinity,
         height: 56,
         child: OutlinedButton(
-          onPressed: () async {
+            onPressed: () async {
             
             setState(() => isLoading = true);
             

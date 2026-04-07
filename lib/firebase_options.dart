@@ -51,7 +51,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyAE8bMBT6WrHRCCRCMaaeSxAZX-Oh2jxEM',
-    appId: '1:927178680548:android:8b425f9c787aeda3b5a4f1',
+    appId: '1:927178680548:android:dbfcbf5dc2cf1b64b5a4f1',
     messagingSenderId: '927178680548',
     projectId: 'bigproject-825',
     storageBucket: 'bigproject-825.firebasestorage.app',
@@ -59,25 +59,29 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyBFhLlLe0I7LFyMa7KHi3ahr3A_B8EV3rM',
-    appId: '1:927178680548:ios:97fb763b7a120700b5a4f1',
+    appId: '1:927178680548:ios:0e12ac889a266796b5a4f1',
     messagingSenderId: '927178680548',
     projectId: 'bigproject-825',
     storageBucket: 'bigproject-825.firebasestorage.app',
-    iosBundleId: 'com.example.bigproject',
+    androidClientId: '927178680548-32r2m686ruc7lv7kua249aue8572krbn.apps.googleusercontent.com',
+    iosClientId: '927178680548-c344nivsagu8lfelfbkcvbbggejkv8ui.apps.googleusercontent.com',
+    iosBundleId: 'com.example.eduExam',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
     apiKey: 'AIzaSyBFhLlLe0I7LFyMa7KHi3ahr3A_B8EV3rM',
-    appId: '1:927178680548:ios:97fb763b7a120700b5a4f1',
+    appId: '1:927178680548:ios:0e12ac889a266796b5a4f1',
     messagingSenderId: '927178680548',
     projectId: 'bigproject-825',
     storageBucket: 'bigproject-825.firebasestorage.app',
-    iosBundleId: 'com.example.bigproject',
+    androidClientId: '927178680548-32r2m686ruc7lv7kua249aue8572krbn.apps.googleusercontent.com',
+    iosClientId: '927178680548-c344nivsagu8lfelfbkcvbbggejkv8ui.apps.googleusercontent.com',
+    iosBundleId: 'com.example.eduExam',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
     apiKey: 'AIzaSyB9Qtdv_-YDe3iVV1DS9Wp7eW67_e-JprU',
-    appId: '1:927178680548:web:f95d48f3bcdb04ddb5a4f1',
+    appId: '1:927178680548:web:4555655d92bf8fcbb5a4f1',
     messagingSenderId: '927178680548',
     projectId: 'bigproject-825',
     authDomain: 'bigproject-825.firebaseapp.com',

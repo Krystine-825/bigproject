@@ -3,7 +3,6 @@ import '../../core/app_colors.dart';
 import '../../widgets/common/custom_button_nav_student.dart';
 import 'join_class_screen.dart';
 import '../../controllers/class_controller.dart';
-import '../../data/models/class_model.dart';
 
 class StudentClassListScreen extends StatefulWidget {
   const StudentClassListScreen({super.key});
@@ -14,36 +13,9 @@ class StudentClassListScreen extends StatefulWidget {
 
 class _StudentClassListScreenState extends State<StudentClassListScreen> {
   final searchController = TextEditingController();
-  final _classCtrl = ClassController();
-
-  /*final List<Map<String, dynamic>> classList = [
-    {
-      'name': '12A1 - B1',
-      'teacher': 'GV: Nguyễn Văn A',
-      'exams': 8,
-      'completed': '6/8',
-      'status': 'inProgress',
-      'newCount': 2,
-    },
-    {
-      'name': '11B2 - A2',
-      'teacher': 'GV: Trần Thị B',
-      'exams': 5,
-      'completed': '4/5',
-      'status': 'inProgress',
-      'newCount': 1,
-    },
-    {
-      'name': '10C3 - B2',
-      'teacher': 'GV: Lê Văn C',
-      'exams': 6,
-      'completed': '6/6',
-      'status': 'completed',
-      'newCount': 0,
-    },
-  ];*/
-
-
+  final  classController = ClassController();
+  String searchText ='';
+  
 
   @override
   void dispose() {
@@ -51,6 +23,12 @@ class _StudentClassListScreenState extends State<StudentClassListScreen> {
     super.dispose();
   }
 
+  Future<void> goJoin() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const JoinClassScreen()),
+    );
+  }
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -89,13 +67,7 @@ class _StudentClassListScreenState extends State<StudentClassListScreen> {
             ),
           ),
           IconButton(
-            onPressed: () {
-              // TODO: Chuyển sang màn tạo lớp
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const JoinClassScreen()),
-              );
-            },
+            onPressed: goJoin,
             icon: const Icon(Icons.add_rounded),
             color: AppColors.primary,
             style: IconButton.styleFrom(
@@ -114,6 +86,7 @@ class _StudentClassListScreenState extends State<StudentClassListScreen> {
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
       child: TextField(
         controller: searchController,
+        onChanged: (m) => setState(() => searchText = m.toLowerCase()),
         decoration: InputDecoration(
           hintText: 'Tìm kiếm lớp học...',
           hintStyle: const TextStyle(color: AppColors.textHint),
@@ -171,37 +144,96 @@ class _StudentClassListScreenState extends State<StudentClassListScreen> {
   }
 
   Widget _classList() {
-    return StreamBuilder<List<ClassModel>>(
-      stream: _classCtrl.getStudentClassesStream(),
+   return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: classController.streamStudentClasses(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+          return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
-          return Center(child: Text('Lỗi: ${snapshot.error}'));
-        }
-
-        final classes = snapshot.data ?? [];
-        if (classes.isEmpty) {
-          return const Center(
-            child: Text('Bạn chưa tham gia lớp học nào.', style: TextStyle(color: AppColors.textMedium)),
+           return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.error_outline_rounded,
+                    size: 48, color: Colors.redAccent),
+                const SizedBox(height: 12),
+                Text(
+                  'Lỗi tải dữ liệu\n${snapshot.error}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: AppColors.textMedium),
+                ),
+              ],
+            ),
           );
         }
+        final classes = snapshot.data ?? [];
+        final filteredClasses = searchText.isEmpty?classes:classes.where((cls) {
+          final name = cls['name'].toString().toLowerCase();
+          return name.contains(searchText);
+        }).toList();
+        
+        //chưa tham gia lớp nào 
+        if (classes.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.school_outlined,
+                    size: 64, color: AppColors.textHint),
+                const SizedBox(height: 12),
+                const Text(
+                  'Chưa tham gia lớp nào',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textMedium,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Nhấn + để tham gia lớp học',
+                  style: TextStyle(fontSize: 13, color: AppColors.textHint),
+                ),
+              ],
+            ),
+          );
+        }
+ 
+       // không tìm thấy lớp nào sau khi search
+          if (filteredClasses.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.search_off_rounded,
+                    size: 52, color: AppColors.textHint),
+                const SizedBox(height: 12),
+                Text(
+                  'Không tìm thấy "$searchText"',
+                  style: const TextStyle(color: AppColors.textMedium),
+                ),
+              ],
+            ),
+          );
+        }
+ 
 
         return ListView.builder(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
-          itemCount: classes.length,
-          itemBuilder: (context, index) => classCard(classes[index]), // Truyền ClassModel thật
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          itemCount: filteredClasses.length,
+          itemBuilder: (context, index) {
+            final cls = filteredClasses[index];
+            return classCard(cls);
+          },
         );
       },
     );
   }
 
-  Widget classCard(ClassModel cls) {
-    
-    final bool isCompleted = false;
-    final int newCount = 0; 
-    final int exams = 0;
+  Widget classCard(Map<String, dynamic> cls) {
+    final isCompleted = (cls['status'] ?? 'inProgress') == 'completed';
+    final newCount = cls['newCount'] as int? ?? 0;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -247,7 +279,7 @@ class _StudentClassListScreenState extends State<StudentClassListScreen> {
                       children: [
                         Expanded(
                           child: Text(
-                            cls.name, // Đã đổi thành .name
+                            cls['name'] as String,
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
@@ -255,14 +287,13 @@ class _StudentClassListScreenState extends State<StudentClassListScreen> {
                             ),
                           ),
                         ),
-                        if (newCount > 0) // Dùng biến cục bộ ở trên
+                        if (newCount > 0)
                           Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 2,
-                            ),
+                                horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFFF9800).withOpacity(0.1),
+                              color:
+                                  const Color(0xFFFF9800).withOpacity(0.1),
                               borderRadius: BorderRadius.circular(999),
                             ),
                             child: Text(
@@ -278,11 +309,10 @@ class _StudentClassListScreenState extends State<StudentClassListScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Mã lớp: ${cls.code}', // Đã đổi thành .code
+                      cls['teacher'] as String,
                       style: const TextStyle(
                         fontSize: 12,
                         color: AppColors.textMedium,
-                        fontWeight: FontWeight.w600
                       ),
                     ),
                   ],
@@ -295,30 +325,12 @@ class _StudentClassListScreenState extends State<StudentClassListScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '$exams đề thi',
+                'Mã: ${cls['code']}',
                 style: const TextStyle(
                   fontSize: 13,
                   color: AppColors.textMedium,
                 ),
               ),
-              if (isCompleted)
-                const Text(
-                  'Đã hoàn tất',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF10B981),
-                  ),
-                )
-              else
-                const Text(
-                  'Chưa có đề',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.primary,
-                  ),
-                ),
               const Icon(
                 Icons.chevron_right_rounded,
                 color: AppColors.textHint,
@@ -329,10 +341,8 @@ class _StudentClassListScreenState extends State<StudentClassListScreen> {
       ),
     );
   }
-        
-  }
 
   Widget bottomNav() {
     return const CustomBottomNavSt(currentIndex: 1); // Tab Lớp học đang active
   }
-
+}
