@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../widgets/common/custom_text_field.dart';
 import '../../controllers/class_controller.dart';
+import '../../data/models/class_model.dart';
 
 class JoinClassScreen extends StatefulWidget {
   const JoinClassScreen({super.key});
@@ -14,15 +15,102 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
   final classCodeController = TextEditingController();
   final passwordController = TextEditingController();
   bool hidePassword = true;
-  
-  final _classCtrl = ClassController(); 
-  bool _isLoading = false; 
+
+  final classController = ClassController();
+  bool isLoading = false;
 
   @override
   void dispose() {
     classCodeController.dispose();
     passwordController.dispose();
     super.dispose();
+  }
+  
+  Future<void> joinClass() async {
+    final code = classCodeController.text.trim();
+    if(code.isEmpty){
+      ScaffoldMessenger.of(context).showSnackBar( const SnackBar(
+        content: Text('Vui lòng nhập mã lớp'),
+        backgroundColor: AppColors.error,
+      ));
+      return;
+    }
+    setState(() => isLoading = true);
+    try {
+      final cls = await classController.joinClass(
+        code: code,
+        passwordHash: passwordController.text.trim().isEmpty? null :  passwordController.text.trim(),
+      );
+      if(!mounted) return;
+      await _showSuccessDialog(cls);
+    } catch (e) {
+      if(!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar( SnackBar(
+        content: Text(e.toString()),
+        backgroundColor: AppColors.error,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ));
+    } finally {
+      setState(() => isLoading = false);
+    }
+  }
+   Future<void> _showSuccessDialog(ClassModel cls) async {
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.check_circle_rounded, color: Colors.green, size: 28),
+            SizedBox(width: 8),
+            Text('Tham gia thành công!'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.school_rounded,
+                size: 56, color: AppColors.primary),
+            const SizedBox(height: 12),
+            Text(
+              cls.name,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textDark,
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Bạn đã được thêm vào lớp học.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, color: AppColors.textMedium),
+            ),
+          ],
+        ),
+        actions: [
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context); // đóng dialog
+                Navigator.pop(context, cls); // trả ClassModel về màn trước
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: AppColors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text('Xong'),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -123,7 +211,6 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
     return const SizedBox.shrink(); // Đã có trong Illustration
   }
 
-  // ==================== FORM ====================
   Widget form() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -184,52 +271,30 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
         width: double.infinity,
         height: 56,
         child: ElevatedButton(
-          onPressed: _isLoading ? null : () async {
-            final code = classCodeController.text.trim();
-            if (code.isEmpty) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Vui lòng nhập mã lớp'), backgroundColor: AppColors.error),
-              );
-              return;
-            }
-
-            setState(() => _isLoading = true);
-
-            final error = await _classCtrl.joinClass(
-              code: code,
-              password: passwordController.text.trim(),
-            );
-
-            setState(() => _isLoading = false);
-            if (!context.mounted) return;
-
-            if (error != null) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(error), backgroundColor: AppColors.error),
-              );
-            } else {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Tham gia lớp thành công!'), backgroundColor: AppColors.success),
-              );
-              Navigator.pop(context); // Quay về màn hình trước
-            }
-          },
+          onPressed: isLoading?null: joinClass, 
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.primary,
             foregroundColor: AppColors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+            disabledBackgroundColor: AppColors.primary.withOpacity(0.6),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(28),
+            ),
             elevation: 4,
             shadowColor: AppColors.primary.withOpacity(0.3),
           ),
-          child: _isLoading 
-            ? const SizedBox(
-                width: 24, height: 24,
-                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
-              )
-            : const Text(
-                'Tham gia lớp',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+          child: isLoading ? const SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                color: Colors.white,
+                strokeWidth: 2.5,
               ),
+            )
+           :
+          const Text(
+            'Tham gia lớp',
+            style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+          ),
         ),
       ),
     );

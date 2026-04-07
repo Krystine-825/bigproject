@@ -20,18 +20,6 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   bool isLoading = false;
 
   @override
-  void initState() {
-    super.initState();
-    final currentUser = authCtrl.authService.currentUser;
-    if (currentUser != null) {
-      if (currentUser.displayName != null) {
-        _nameCtrl.text = currentUser.displayName!;
-      }
-      
-    }
-  }
-
-  @override
   void dispose() {
     _nameCtrl.dispose();
     _phoneCtrl.dispose();

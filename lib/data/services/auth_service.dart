@@ -1,5 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_sign_in/google_sign_in.dart'; // THÊM THƯ VIỆN NÀY
+import 'package:google_sign_in/google_sign_in.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -26,18 +26,19 @@ class AuthService {
     );
   }
 
-  Future<void> signOut() => _auth.signOut();
+  Future<void> signOut() =>    _auth.signOut();
     
+
   Future<void> sendPasswordResetEmail({required String email}) async {
     await _auth.sendPasswordResetEmail(email: email);
   }
 
   User? get currentUser => _auth.currentUser;
+  //String? get currentUid  => _auth.currentUser?.uid;
   
   Stream<User?> authStateChanges() => _auth.authStateChanges();
 
-  // THÊM ĐOẠN CODE NÀY CHO GOOGLE LOGIN
-  Future<UserCredential?> signInWithGoogle() async {
+   Future<UserCredential?> signInWithGoogle() async {
     final googleSignIn = GoogleSignIn.instance;
     await googleSignIn.initialize();
 
@@ -51,4 +52,5 @@ class AuthService {
 
     return await _auth.signInWithCredential(credential);
   }
+
 }

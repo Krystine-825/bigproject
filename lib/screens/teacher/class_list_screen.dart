@@ -1,47 +1,47 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../widgets/common/custom_button_nav.dart';
-import '../../core/app_navigator.dart';
+import '../../controllers/class_controller.dart';
 import 'create_class_screen.dart';
 import 'class_detail_screen.dart';
-import '../../controllers/class_controller.dart';
 import '../../data/models/class_model.dart';
- 
+
 class ClassListScreen extends StatefulWidget {
   const ClassListScreen({super.key});
- 
+
   @override
   State<ClassListScreen> createState() => _ClassListScreenState();
 }
- 
+
 class _ClassListScreenState extends State<ClassListScreen> {
-  final searchController = TextEditingController();
-  int _currentNavIndex = 1;
+  final _searchController = TextEditingController();
+  final _classController  = ClassController();
   String _searchText = '';
- 
-  final _classCtrl = ClassController();
- 
-  /*final List<Map<String, dynamic>> _classList = [
-    {'name': '12A1 — B1',             'code': 'AB12C3', 'students': 18, 'examsAssigned': 12},
-    {'name': '11B2 — A2',             'code': 'XY34Z5', 'students': 25, 'examsAssigned': 8},
-    {'name': '10C1 — Basic',          'code': 'MN56P7', 'students': 32, 'examsAssigned': 15},
-    {'name': 'IELTS Master — Evening', 'code': 'QR78S9', 'students': 12, 'examsAssigned': 24},
-  ];*/
- 
+
   @override
   void dispose() {
-    searchController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
- 
-  // Lọc danh sách theo ô search
-  /*List<Map<String, dynamic>> get _filtered {
-    if (_searchText.isEmpty) return _classList;
-    return _classList
-        .where((c) => c['name'].toString().toLowerCase().contains(_searchText))
+
+  // ─── Lọc theo search ─────────────────────────────────────────────────────────
+  List<ClassModel> _filter(List<ClassModel> all) {
+    if (_searchText.isEmpty) return all;
+    return all
+        .where((c) => (c.name ?? '').toLowerCase().contains(_searchText))
         .toList();
-  }*/
- 
+  }
+
+  // ─── Mở CreateClassScreen, nhận ClassModel trả về để refresh ngay ────────────
+  Future<void> _goCreate() async {
+    // StreamBuilder tự refresh — push và chờ kết quả (ClassModel hoặc null)
+    await Navigator.push<ClassModel>(
+      context,
+      MaterialPageRoute(builder: (_) => const CreateClassScreen()),
+    );
+    // Stream Firestore tự cập nhật, không cần setState thủ công
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -49,17 +49,17 @@ class _ClassListScreenState extends State<ClassListScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            header(),
-            searchBar(),
-            Expanded(child: classList()),
+            _buildHeader(),
+            _buildSearchBar(),
+            Expanded(child: _buildClassList()),
           ],
         ),
       ),
-      bottomNavigationBar: CustomBottomNav(currentIndex: _currentNavIndex),
+      bottomNavigationBar: const CustomBottomNav(currentIndex: 1),
     );
   }
- 
-  Widget header() {
+
+  Widget _buildHeader() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
       child: Row(
@@ -77,10 +77,7 @@ class _ClassListScreenState extends State<ClassListScreen> {
             ),
           ),
           IconButton(
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const CreateClassScreen()),
-            ),
+            onPressed: _goCreate,
             icon: const Icon(Icons.add_rounded),
             color: AppColors.primary,
             style: IconButton.styleFrom(
@@ -93,13 +90,13 @@ class _ClassListScreenState extends State<ClassListScreen> {
       ),
     );
   }
- 
-  Widget searchBar() {
+
+  Widget _buildSearchBar() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
       child: TextField(
-        controller: searchController,
-        onChanged: (v) => setState(() => _searchText = v.toLowerCase()), // THÊM
+        controller: _searchController,
+        onChanged: (v) => setState(() => _searchText = v.toLowerCase()),
         decoration: InputDecoration(
           hintText: 'Tìm kiếm lớp học...',
           hintStyle: TextStyle(color: AppColors.textHint),
@@ -115,41 +112,29 @@ class _ClassListScreenState extends State<ClassListScreen> {
       ),
     );
   }
- 
-  Widget classList() {
+
+  // ─── StreamBuilder — tự cập nhật realtime khi Firestore thay đổi ─────────────
+  Widget _buildClassList() {
     return StreamBuilder<List<ClassModel>>(
-      stream: _classCtrl.getMyClassesStream(), // Lấy luồng dữ liệu thật từ Firebase
+      stream: _classController.streamMyClasses(),
       builder: (context, snapshot) {
-        // Đang tải dữ liệu
+        // Đang load lần đầu
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(color: AppColors.primary),
-          );
+          return const Center(child: CircularProgressIndicator());
         }
 
-        // Nếu có lỗi
+        // Lỗi
         if (snapshot.hasError) {
-          return Center(child: Text('Lỗi tải dữ liệu: ${snapshot.error}'));
-        }
-
-        final classes = snapshot.data ?? [];
-
-        // Lọc danh sách theo chữ tìm kiếm
-        final filteredList = classes.where((c) {
-          if (_searchText.isEmpty) return true;
-          return c.name.toLowerCase().contains(_searchText);
-        }).toList();
-
-        // Không có dữ liệu
-        if (filteredList.isEmpty) {
           return Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.search_off_rounded, size: 52, color: AppColors.textHint),
+                const Icon(Icons.error_outline_rounded,
+                    size: 48, color: Colors.redAccent),
                 const SizedBox(height: 12),
                 Text(
-                  _searchText.isEmpty ? 'Bạn chưa tạo lớp học nào' : 'Không tìm thấy "$_searchText"',
+                  'Lỗi tải dữ liệu\n${snapshot.error}',
+                  textAlign: TextAlign.center,
                   style: const TextStyle(color: AppColors.textMedium),
                 ),
               ],
@@ -157,24 +142,71 @@ class _ClassListScreenState extends State<ClassListScreen> {
           );
         }
 
-        // Vẽ danh sách lớp thật
+        final list = _filter(snapshot.data ?? []);
+
+        // Trống hoàn toàn (chưa có lớp nào)
+        if ((snapshot.data ?? []).isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.school_outlined,
+                    size: 64, color: AppColors.textHint),
+                const SizedBox(height: 12),
+                const Text(
+                  'Chưa có lớp nào',
+                  style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textMedium),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Nhấn + để tạo lớp đầu tiên',
+                  style:
+                      TextStyle(fontSize: 13, color: AppColors.textHint),
+                ),
+              ],
+            ),
+          );
+        }
+
+        // Không tìm thấy khi search
+        if (list.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.search_off_rounded,
+                    size: 52, color: AppColors.textHint),
+                const SizedBox(height: 12),
+                Text(
+                  'Không tìm thấy "$_searchText"',
+                  style: const TextStyle(color: AppColors.textMedium),
+                ),
+              ],
+            ),
+          );
+        }
+
         return ListView.builder(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
-          itemCount: filteredList.length,
-          itemBuilder: (_, index) => classCard(filteredList[index]),
+          itemCount: list.length,
+          itemBuilder: (_, i) => _buildClassCard(list[i]),
         );
       },
     );
   }
- 
-  Widget classCard(ClassModel classItem) {
+
+  Widget _buildClassCard(ClassModel cls) {
     return GestureDetector(
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(
           builder: (_) => ClassDetailScreen(
-            className: classItem.name, // Sửa thành .name
-            classCode: classItem.code, // Sửa thành .code
+            classId:   cls.id,     // truyền id thật để load member
+            className: cls.name,
+            classCode: cls.code,
           ),
         ),
       ),
@@ -194,7 +226,6 @@ class _ClassListScreenState extends State<ClassListScreen> {
         ),
         child: Row(
           children: [
-            // Icon lớp học
             Container(
               width: 64,
               height: 64,
@@ -214,7 +245,7 @@ class _ClassListScreenState extends State<ClassListScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    classItem.name, // Sửa thành .name
+                    cls.name,
                     style: const TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.bold,
@@ -223,47 +254,24 @@ class _ClassListScreenState extends State<ClassListScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Mã: ${classItem.code}', // Sửa thành .code
+                    'Mã: ${cls.code}',
                     style: const TextStyle(
                       fontSize: 13,
                       color: AppColors.primary,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      infoRow(
-                        Icons.groups_rounded,
-                        '0 học sinh', // Tạm thời để 0 vì ta chưa lấy số HS thật
-                      ),
-                      const SizedBox(width: 20),
-                      infoRow(
-                        Icons.assignment_rounded,
-                        '0 đề', // Tạm thời để 0
-                      ),
-                    ],
-                  ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right_rounded, color: AppColors.textHint, size: 26),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: AppColors.textHint,
+              size: 26,
+            ),
           ],
         ),
       ),
-    );
-  }
- 
-  Widget infoRow(IconData icon, String text) {
-    return Row(
-      children: [
-        Icon(icon, size: 17, color: AppColors.textMedium),
-        const SizedBox(width: 6),
-        Text(
-          text,
-          style: TextStyle(fontSize: 13.5, color: AppColors.textMedium),
-        ),
-      ],
     );
   }
 }

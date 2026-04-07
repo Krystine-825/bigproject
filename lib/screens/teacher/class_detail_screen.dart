@@ -2,15 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/app_colors.dart';
 import '../../widgets/common/custom_button_nav.dart';
+import '../../data/models/class_member_model.dart';
+import '../../controllers/class_controller.dart';
  
 class ClassDetailScreen extends StatefulWidget {
-  // Nhận tên lớp + mã lớp từ màn ClassListScreen truyền sang
-  // Khi kết nối Firebase sau thì thay bằng ClassModel
+
+  final String classId;
   final String className;
   final String classCode;
  
   const ClassDetailScreen({
     super.key,
+    required this.classId, // THÊM
     required this.className,
     required this.classCode,
   });
@@ -26,16 +29,9 @@ class _ClassDetailScreenState extends State<ClassDetailScreen>
   String _searchText = '';
  
 
-  final List<Map<String, dynamic>> _members = [
-    {'name': 'Nguyễn Thành Trung',  'email': 'trung.nt@gmail.com'},
-    {'name': 'Lê Hồng Hạnh',        'email': 'hanh.lh@gmail.com'},
-    {'name': 'Phan Thanh Tùng',     'email': 'tung.pt@gmail.com'},
-    {'name': 'Vũ Minh Anh',         'email': 'anh.vm@gmail.com'},
-    {'name': 'Đỗ Kim Liên',         'email': 'lien.dk@gmail.com'},
-    {'name': 'Trần Văn Tú',         'email': 'tu.tv@gmail.com'},
-    {'name': 'Nguyễn Thị Mai',      'email': 'mai.nt@gmail.com'},
-    {'name': 'Hoàng Quốc Bảo',      'email': 'bao.hq@gmail.com'},
-  ];
+  final classController = ClassController();
+ 
+
  
   @override
   void initState() {
@@ -50,24 +46,24 @@ class _ClassDetailScreenState extends State<ClassDetailScreen>
     super.dispose();
   }
  
- 
-  List<Map<String, dynamic>> get _filtered {
-    if (_searchText.isEmpty) return _members;
-    return _members
+
+  List<ClassMemberModel> _filterMembers(List<ClassMemberModel> members) {
+    if (_searchText.isEmpty) return members;
+    return members
         .where((m) =>
-            m['name'].toString().toLowerCase().contains(_searchText) ||
-            m['email'].toString().toLowerCase().contains(_searchText))
+            (m.studentName ?? '').toLowerCase().contains(_searchText) ||
+            (m.studentEmail ?? '').toLowerCase().contains(_searchText))
         .toList();
   }
  
-  // Lấy 2 chữ cái đầu của tên — hiện trong avatar
+  
   String _initials(String name) {
     final parts = name.trim().split(' ');
     if (parts.length == 1) return parts[0][0].toUpperCase();
     return (parts[parts.length - 2][0] + parts.last[0]).toUpperCase();
   }
  
-  // Copy mã lớp vào clipboard
+ 
   void _copyCode() {
     Clipboard.setData(ClipboardData(text: widget.classCode));
     ScaffoldMessenger.of(context).showSnackBar(
@@ -80,8 +76,9 @@ class _ClassDetailScreenState extends State<ClassDetailScreen>
     );
   }
  
-  // Hộp thoại xác nhận kick — chỉ UI, chưa gọi Firebase
-  void _showKickDialog(String name) {
+ 
+  void _showKickDialog(ClassMemberModel member) {
+    final name = member.studentName ?? 'học sinh này';
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
@@ -100,18 +97,33 @@ class _ClassDetailScreenState extends State<ClassDetailScreen>
             ),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              // TODO: gọi ClassController.kickStudent() sau khi kết nối Firebase
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Đã kick "$name" khỏi lớp'),
-                  backgroundColor: Colors.green,
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
-                ),
-              );
+              // THÊM: gọi Firebase kick thật
+              try {
+                await classController.kickMember(member.id);
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Đã kick "$name" khỏi lớp'),
+                    backgroundColor: Colors.green,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                );
+              } catch (e) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Lỗi: $e'),
+                    backgroundColor: Colors.red,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                );
+              }
             },
             child: const Text(
               'Kick',
@@ -154,7 +166,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen>
     );
   }
  
-  
+ 
   Widget _buildHeader() {
     return Container(
       color: AppColors.white,
@@ -177,12 +189,19 @@ class _ClassDetailScreenState extends State<ClassDetailScreen>
                     color: AppColors.textDark,
                   ),
                 ),
-                Text(
-                  '${_members.length} học sinh',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: AppColors.textMedium,
-                  ),
+                // THÊM: đếm thành viên thật từ stream
+                StreamBuilder<List<ClassMemberModel>>(
+                  stream: classController.streamMembers(widget.classId),
+                  builder: (context, snap) {
+                    final count = snap.data?.length ?? 0;
+                    return Text(
+                      '$count học sinh',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textMedium,
+                      ),
+                    );
+                  },
                 ),
               ],
             ),
@@ -193,7 +212,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen>
     );
   }
  
-  
+ 
   Widget _buildCodeCard() {
     return Container(
       margin: const EdgeInsets.all(16),
@@ -293,7 +312,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen>
     );
   }
  
- 
+
   Widget _buildMembersTab() {
     return Column(
       children: [
@@ -302,6 +321,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen>
       ],
     );
   }
+ 
  
   Widget _buildSearchBar() {
     return Padding(
@@ -338,36 +358,56 @@ class _ClassDetailScreenState extends State<ClassDetailScreen>
     );
   }
  
+ 
   Widget _buildMembersList() {
-    final list = _filtered;
+    return StreamBuilder<List<ClassMemberModel>>(
+      stream: classController.streamMembers(widget.classId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(
+            child: Text('Lỗi: ${snapshot.error}',
+                style: const TextStyle(color: AppColors.textMedium)),
+          );
+        }
  
-    if (list.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.search_off_rounded,
-                size: 52, color: AppColors.textHint),
-            const SizedBox(height: 12),
-            Text(
-              'Không tìm thấy "$_searchText"',
-              style: const TextStyle(color: AppColors.textMedium),
+        final list = _filterMembers(snapshot.data ?? []);
+ 
+        if (list.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.search_off_rounded,
+                    size: 52, color: AppColors.textHint),
+                const SizedBox(height: 12),
+                Text(
+                  _searchText.isEmpty
+                      ? 'Chưa có học sinh nào trong lớp'
+                      : 'Không tìm thấy "$_searchText"',
+                  style: const TextStyle(color: AppColors.textMedium),
+                ),
+              ],
             ),
-          ],
-        ),
-      );
-    }
+          );
+        }
  
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
-      itemCount: list.length,
-      itemBuilder: (_, i) => _buildMemberCard(list[i], i),
+        return ListView.builder(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
+          itemCount: list.length,
+          itemBuilder: (_, i) => _buildMemberCard(list[i], i),
+        );
+      },
     );
   }
  
-  Widget _buildMemberCard(Map<String, dynamic> member, int index) {
-    // Lấy màu từ AppColors theo index — xoay vòng
+  
+  Widget _buildMemberCard(ClassMemberModel member, int index) {
     final colorIndex = index % AppColors.avatarBgColors.length;
+    final name  = member.studentName  ?? 'Không rõ';
+    final email = member.studentEmail ?? '';
  
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
@@ -378,7 +418,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen>
       ),
       child: Row(
         children: [
-          // Avatar chữ cái
+          // Avatar chữ cái (GIỮ NGUYÊN)
           Container(
             width: 44,
             height: 44,
@@ -388,7 +428,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen>
             ),
             child: Center(
               child: Text(
-                _initials(member['name']),
+                _initials(name),
                 style: TextStyle(
                   color: AppColors.avatarTextColors[colorIndex],
                   fontWeight: FontWeight.bold,
@@ -399,13 +439,13 @@ class _ClassDetailScreenState extends State<ClassDetailScreen>
           ),
           const SizedBox(width: 12),
  
-          // Tên + email
+          // Tên + email (GIỮ NGUYÊN layout)
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  member['name'],
+                  name,
                   style: const TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 15,
@@ -414,7 +454,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen>
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  member['email'],
+                  email,
                   style: const TextStyle(
                     fontSize: 12,
                     color: AppColors.textMedium,
@@ -424,9 +464,9 @@ class _ClassDetailScreenState extends State<ClassDetailScreen>
             ),
           ),
  
-          // Nút kick
+          
           GestureDetector(
-            onTap: () => _showKickDialog(member['name']),
+            onTap: () => _showKickDialog(member),
             child: Container(
               width: 36,
               height: 36,
@@ -446,7 +486,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen>
     );
   }
  
- 
+
   Widget _buildResultsTab() {
     return const Center(
       child: Column(
