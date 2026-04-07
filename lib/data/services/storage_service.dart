@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'package:firebase_storage/firebase_storage.dart';
- 
+//import 'package:firebase_auth/firebase_auth.dart';
+
+
 class UploadResult {
   final String downloadUrl;
   final String storagePath;
@@ -15,6 +17,8 @@ class StorageService {
   final FirebaseStorage _storage = FirebaseStorage.instance;
  
   Future<UploadResult> uploadPdf(
+  // final user = FirebaseAuth.instance.currentUser;
+  // print('=== DEBUG: currentUser = ${user?.uid}');
     File file,
     String teacherId,
     String fileName,
