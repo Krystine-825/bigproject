@@ -14,11 +14,11 @@
       },
       "oauth_client": [
         {
-          "client_id": "927178680548-32r2m686ruc7lv7kua249aue8572krbn.apps.googleusercontent.com",
+          "client_id": "927178680548-l3goct8d36ngjt1umgjmnd5s3l70mttd.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.example.bigproject",
-            "certificate_hash": "4559e91c797ffeb66e6f18919b4e3faf70dad7f9"
+            "certificate_hash": "cb366886e5ce2395a55abb077b28c9213fe841ca"
           }
         },
         {
@@ -39,10 +39,10 @@
               "client_type": 3
             },
             {
-              "client_id": "927178680548-vpur2m6ti5g2k7on3uf6eaf7qoiosi5g.apps.googleusercontent.com",
+              "client_id": "927178680548-c344nivsagu8lfelfbkcvbbggejkv8ui.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "com.example.bigproject"
+                "bundle_id": "com.example.eduExam"
               }
             }
           ]
@@ -57,6 +57,14 @@
         }
       },
       "oauth_client": [
+        {
+          "client_id": "927178680548-dq293rf230i0p9dpd07053q4go7728cl.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.edu_exam",
+            "certificate_hash": "cb366886e5ce2395a55abb077b28c9213fe841ca"
+          }
+        },
         {
           "client_id": "927178680548-vdss7nqhqos0q83nopq3ijksgsup8v1h.apps.googleusercontent.com",
           "client_type": 3
@@ -75,10 +83,10 @@
               "client_type": 3
             },
             {
-              "client_id": "927178680548-vpur2m6ti5g2k7on3uf6eaf7qoiosi5g.apps.googleusercontent.com",
+              "client_id": "927178680548-c344nivsagu8lfelfbkcvbbggejkv8ui.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "com.example.bigproject"
+                "bundle_id": "com.example.eduExam"
               }
             }
           ]
