@@ -4,6 +4,7 @@ import '../data/models/exam_model.dart';
 import '../data/services/auth_service.dart';
 import '../data/services/firestore_service.dart';
 import '../data/services/storage_service.dart';
+import 'dart:convert';
 
 class ExamController {
   final  functions = FirebaseFunctions.instance;
@@ -13,6 +14,7 @@ class ExamController {
 
  //sinh đề
   Future<ExamModel> generateExam({
+    required String classId, //nó báo thiếu tham sô bắt buộc là do cái này
     required String examName,
     required File   pdfFile,
     required String extractedText,
@@ -32,13 +34,14 @@ class ExamController {
       ),
     );
 
-    final result = await callable.call<Map<String, dynamic>>({
+    //ClassId & bỏ <Map<String, dynamic>> 
+    final result = await callable.call({
+      'classId':       classId,
       'teacherId':     teacherId,
       'pdfUrl':        uploaded.downloadUrl,
       'storagePath':   uploaded.storagePath,
       'extractedText': extractedText,
       'fileName':      fileName,
-      'examName':      examName,
       'config': {
         'questionCount': questionCount,
         'difficulty':    difficulty,
@@ -46,7 +49,11 @@ class ExamController {
       },
     });
 
-    final data = result.data;
+    
+    final String jsonString = jsonEncode(result.data);
+    
+    final Map<String, dynamic> data = jsonDecode(jsonString);
+
     if (data['success'] != true) {
       throw Exception(data['error'] ?? 'Tạo đề thi thất bại');
     }

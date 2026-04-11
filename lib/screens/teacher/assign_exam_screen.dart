@@ -421,7 +421,7 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
   }
 
   String _formatDateTime(DateTime dt) {
-    final pad = (int n) => n.toString().padLeft(2, '0');
+    String pad(int n) => n.toString().padLeft(2, '0');
     return '${pad(dt.day)}/${pad(dt.month)}/${dt.year}  '
         '${pad(dt.hour)}:${pad(dt.minute)}';
   }

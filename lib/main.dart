@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'; 
 import 'screens/auth/onboarding_screen.dart';
 import 'package:firebase_core/firebase_core.dart'; 
 import 'firebase_options.dart';  
@@ -11,12 +12,14 @@ void main() async {
   );
 
    await FirebaseAppCheck.instance.activate(
-    androidProvider: AndroidProvider.debug, 
-    //appleProvider: AppleProvider.debug,
+    androidProvider: kDebugMode ? AndroidProvider.debug : AndroidProvider.playIntegrity, 
+    appleProvider: kDebugMode ? AppleProvider.debug : AppleProvider.deviceCheck,
   );
   
   runApp(const MyApp());
 }
+
+
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});

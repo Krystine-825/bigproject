@@ -103,7 +103,7 @@ void _showError(String msg) {
           width: double.infinity,
           height: 160,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => Container(
+          errorBuilder: (_, _, _) => Container(
             height: 160,
             decoration: BoxDecoration(
               color: AppColors.primaryLight,

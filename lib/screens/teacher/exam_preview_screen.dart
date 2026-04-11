@@ -507,7 +507,9 @@ class _EditQuestionSheetState extends State<_EditQuestionSheet> {
     _questionCtrl.dispose();
     _answerCtrl.dispose();
     _explanationCtrl.dispose();
-    for (final c in _optionCtrls) c.dispose();
+    for (final c in _optionCtrls) {
+      c.dispose();
+    }
     super.dispose();
   }
 

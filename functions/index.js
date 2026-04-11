@@ -225,6 +225,20 @@ async function _callOpenAI(text, config) {
   });
 
   const raw  = response.choices[0].message.content;
+
+  //check do dài token
+  const charCount = raw.length;
+  console.log(`[THỐNG KÊ AI] Số ký tự AI sinh ra (Output length): ${charCount} ký tự.`);
+
+  if (response.usage) {
+    const promptTokens = response.usage.prompt_tokens;       // Token đầu vào (Text PDF + Lệnh)
+    const completionTokens = response.usage.completion_tokens; // Token đầu ra (Bộ đề JSON)
+    const totalTokens = response.usage.total_tokens;         // Tổng Token (Quyết định chi phí)
+    
+    console.log(`[THỐNG KÊ TOKEN] Đầu vào: ${promptTokens} | Đầu ra: ${completionTokens} | Tổng cộng: ${totalTokens}`);
+  }
+  // ════════════════════════════════════════════════════════════════════════
+
   const parsed = JSON.parse(raw);
 
   if (!parsed.questions || !Array.isArray(parsed.questions)) {

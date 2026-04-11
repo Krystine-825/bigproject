@@ -44,7 +44,7 @@ class PdfValidator {
     try {
       return _analyzeDocument(document);
     } finally {
-      document?.dispose();
+      document.dispose();
     }
   }
 
@@ -120,8 +120,9 @@ class PdfValidator {
       total++;
       final code = rune;
 
-      if (_isVietnamese(code)) vietnamese++;
-      else if (_isMath(code)) math++;
+      if (_isVietnamese(code)) {
+        vietnamese++;
+      } else if (_isMath(code)) math++;
       else if (_isEnglish(code)) english++;
     }
 
@@ -136,21 +137,21 @@ class PdfValidator {
     if (viRatio > maxVietnameseRatio) {
       final pct = (viRatio * 100).round();
       return PdfValidationResult.error(
-        'Tài liệu chứa quá nhiều tiếng Việt (${pct}%).\nVui lòng upload tài liệu tiếng Anh thuần túy.',
+        'Tài liệu chứa quá nhiều tiếng Việt ($pct%).\nVui lòng upload tài liệu tiếng Anh thuần túy.',
       );
     }
 
     if (mathRatio > maxMathRatio) {
       final pct = (mathRatio * 100).round();
       return PdfValidationResult.error(
-        'Tài liệu chứa quá nhiều ký tự toán học/công thức (${pct}%).\nChỉ chấp nhận tài liệu ngôn ngữ thông thường.',
+        'Tài liệu chứa quá nhiều ký tự toán học/công thức ($pct%).\nChỉ chấp nhận tài liệu ngôn ngữ thông thường.',
       );
     }
 
     if (engRatio < minEnglishRatio) {
       final pct = (engRatio * 100).round();
       return PdfValidationResult.error(
-        'Nội dung tiếng Anh chỉ chiếm ${pct}% — quá thấp.\nVui lòng chọn tài liệu tiếng Anh rõ ràng.',
+        'Nội dung tiếng Anh chỉ chiếm $pct% — quá thấp.\nVui lòng chọn tài liệu tiếng Anh rõ ràng.',
       );
     }
 
