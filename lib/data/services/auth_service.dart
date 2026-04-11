@@ -42,10 +42,10 @@ class AuthService {
     final googleSignIn = GoogleSignIn.instance;
     await googleSignIn.initialize();
 
-    final GoogleSignInAccount? googleUser = await googleSignIn.authenticate();
+    final GoogleSignInAccount googleUser = await googleSignIn.authenticate();
     if (googleUser == null) return null; // Người dùng bấm Hủy
 
-    final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+    final GoogleSignInAuthentication googleAuth = googleUser.authentication;
     final OAuthCredential credential = GoogleAuthProvider.credential(
       idToken: googleAuth.idToken,
     );

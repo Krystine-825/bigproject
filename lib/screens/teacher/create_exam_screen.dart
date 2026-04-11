@@ -7,7 +7,6 @@ import '../../core/pdf_validator.dart';
 import '../../controllers/exam_controller.dart';
 import '../../widgets/common/custom_button_nav.dart';
 import 'exam_preview_screen.dart';
-import '../../controllers/auth_controller.dart';
 
 
 class CreateExamScreen extends StatefulWidget {
@@ -34,6 +33,36 @@ class _CreateExamScreenState extends State<CreateExamScreen> {
   String _difficulty    = 'medium'; 
 
   bool _isGenerating = false;
+
+  List<Map<String, String>> _classes = [];
+  String? _selectedClassId;
+  bool _isLoadingClasses = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadClasses();
+  }
+
+  Future<void> _loadClasses() async {
+    try {
+      final classes = await examController.getMyClasses();
+      if (mounted) {
+        setState(() {
+          _classes = classes;
+          _isLoadingClasses = false;
+          // Tự động chọn lớp đầu tiên nếu có danh sách
+          if (_classes.isNotEmpty) {
+            _selectedClassId = _classes.first['id'];
+          }
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingClasses = false);
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -150,63 +179,75 @@ class _CreateExamScreenState extends State<CreateExamScreen> {
 
   //sinh đề
   Future<void> _handleGenerate() async {
-  final name = examNameController.text.trim();
+    final name = examNameController.text.trim();
 
-  if (name.isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Vui lòng nhập tên đề'),
-        backgroundColor: AppColors.error,
-      ),
-    );
-    return;
+  
+    if (_selectedClassId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vui lòng chọn lớp học trước khi tạo đề'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vui lòng nhập tên đề'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    if (!_fileIsValid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vui lòng upload file PDF hợp lệ'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isGenerating = true);
+
+    try {
+      
+      final exam = await examController.generateExam(
+        classId: _selectedClassId!, // 
+        examName: name,
+        pdfFile: _pickedFile!,         
+        extractedText: _extractedText!,
+        fileName: _fileName!,
+        questionCount: _questionCount,
+        difficulty: _difficulty,
+      );
+
+      if (!mounted) return;
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ExamPreviewScreen(exam: exam),
+        ),
+      );
+
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isGenerating = false);
+    }
   }
-
-  if (!_fileIsValid) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Vui lòng upload file PDF hợp lệ'),
-        backgroundColor: AppColors.error,
-      ),
-    );
-    return;
-  }
-
-  setState(() => _isGenerating = true);
-
-  try {
-   
-    final exam = await examController.generateExam(
-      examName: name,
-      pdfFile: _pickedFile!,         
-      extractedText: _extractedText!,
-      fileName: _fileName!,
-      questionCount: _questionCount,
-      difficulty: _difficulty,
-    );
-
-    if (!mounted) return;
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ExamPreviewScreen(exam: exam),
-      ),
-    );
-
-  } catch (e) {
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(e.toString().replaceFirst('Exception: ', '')),
-        backgroundColor: AppColors.error,
-      ),
-    );
-  } finally {
-    if (mounted) setState(() => _isGenerating = false);
-  }
-}
 
   bool get _canGenerate =>
       _fileIsValid && !_isExtracting && !_isGenerating;
@@ -370,6 +411,13 @@ class _CreateExamScreenState extends State<CreateExamScreen> {
                 color: AppColors.textDark)),
         const SizedBox(height: 16),
         _configCard(children: [
+          
+          //chọn lớp
+          _fieldRow(
+            label: 'Chọn lớp học',
+            child: _buildClassDropdown(),
+          ),
+          const Divider(height: 1),
 
           // Tên đề
           _fieldRow(
@@ -589,4 +637,50 @@ class _CreateExamScreenState extends State<CreateExamScreen> {
       ),
     );
   }
+  
+  Widget _buildClassDropdown() {
+    if (_isLoadingClasses) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 8.0),
+        child: SizedBox(
+          height: 20, width: 20, 
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      );
+    }
+
+    if (_classes.isEmpty) {
+      return const Text(
+        'Chưa có lớp học nào. Vui lòng tạo lớp trước!', 
+        style: TextStyle(color: AppColors.error, fontSize: 13, fontStyle: FontStyle.italic)
+      );
+    }
+
+    return DropdownButtonFormField<String>(
+      value: _selectedClassId,
+      decoration: InputDecoration(
+        border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide.none),
+        filled: true,
+        fillColor: const Color(0xFFF5F7F8),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        isDense: true,
+      ),
+      icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.textMedium),
+      dropdownColor: AppColors.white,
+      items: _classes.map((c) {
+        return DropdownMenuItem<String>(
+          value: c['id'],
+          child: Text(c['name'] ?? '', style: const TextStyle(fontSize: 14, color: AppColors.textDark)),
+        );
+      }).toList(),
+      onChanged: (val) {
+        setState(() {
+          _selectedClassId = val;
+        });
+      },
+    );
+  }
+
 }

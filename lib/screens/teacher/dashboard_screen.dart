@@ -2,10 +2,6 @@ import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import 'class_list_screen.dart';
 import '../../widgets/common/custom_button_nav.dart';
-import '../../core/app_navigator.dart';
-import '../../controllers/auth_controller.dart';
-import '../../controllers/class_controller.dart';
-import '../../data/models/class_model.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
