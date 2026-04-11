@@ -38,7 +38,7 @@ const { initializeApp }     = require('firebase-admin/app');
 const { getFirestore }      = require('firebase-admin/firestore');
 const { getStorage }        = require('firebase-admin/storage');
 const OpenAI                = require('openai');
-const pdfParse              = require('pdf-parse');
+//const pdfParse              = require('pdf-parse');
 
 initializeApp();
 
@@ -119,7 +119,7 @@ async function _extractTextFromStorage(storagePath) {
   const file   = bucket.file(storagePath);
   const [buffer] = await file.download();
 
-  const parsed = await pdfParse(buffer);
+  //const parsed = await pdfParse(buffer);
   const text   = parsed.text;
 
   if (!text || text.trim().length < 100) {
@@ -228,16 +228,17 @@ async function _callOpenAI(text, config) {
 
   //check do dài token
   const charCount = raw.length;
-  console.log(`[THỐNG KÊ AI] Số ký tự AI sinh ra (Output length): ${charCount} ký tự.`);
+  // SỬA console.log THÀNH logger.info
+  logger.info(`[THỐNG KÊ AI] Số ký tự AI sinh ra (Output length): ${charCount} ký tự.`);
 
   if (response.usage) {
-    const promptTokens = response.usage.prompt_tokens;       // Token đầu vào (Text PDF + Lệnh)
-    const completionTokens = response.usage.completion_tokens; // Token đầu ra (Bộ đề JSON)
-    const totalTokens = response.usage.total_tokens;         // Tổng Token (Quyết định chi phí)
+    const promptTokens = response.usage.prompt_tokens;       
+    const completionTokens = response.usage.completion_tokens;
+    const totalTokens = response.usage.total_tokens;         
     
-    console.log(`[THỐNG KÊ TOKEN] Đầu vào: ${promptTokens} | Đầu ra: ${completionTokens} | Tổng cộng: ${totalTokens}`);
+    // SỬA console.log THÀNH logger.info
+    logger.info(`[THỐNG KÊ TOKEN] Đầu vào: ${promptTokens} | Đầu ra: ${completionTokens} | Tổng cộng: ${totalTokens}`);
   }
-  // ════════════════════════════════════════════════════════════════════════
 
   const parsed = JSON.parse(raw);
 
