@@ -35,10 +35,9 @@ setGlobalOptions({ maxInstances: 10 });
 require("dotenv").config(); 
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { initializeApp }     = require('firebase-admin/app');
-const { getFirestore }      = require('firebase-admin/firestore');
+const { getFirestore, FieldValue } = require('firebase-admin/firestore'); // Đã thêm FieldValue để lưu thời gian
 const { getStorage }        = require('firebase-admin/storage');
 const OpenAI                = require('openai');
-//const pdfParse              = require('pdf-parse');
 
 initializeApp();
 
@@ -62,13 +61,37 @@ exports.generateExamFromPdf = onCall(
       throw new HttpsError('invalid-argument', 'Thiếu tham số bắt buộc');
     }
 
+    
+    //GIỚI HẠN 2 ĐỀ / NGÀY
+    const MAX_EXAMS_PER_DAY = 2;
+    const today = new Date().toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+    const quotaRef = db.collection('ai_quotas').doc(teacherId);
+    const quotaDoc = await quotaRef.get();
+    let usageCount = 0;
+
+    if (quotaDoc.exists) {
+      const quotaData = quotaDoc.data();
+      if (quotaData.date === today) {
+        usageCount = quotaData.count || 0;
+        if (usageCount >= MAX_EXAMS_PER_DAY) {
+          logger.warn(`[QUOTA] Giáo viên ${teacherId} đã hết lượt hôm nay.`);
+          throw new HttpsError(
+            'resource-exhausted', 
+            `Bạn đã sử dụng hết ${MAX_EXAMS_PER_DAY} lượt tạo đề bằng AI của ngày hôm nay. Vui lòng quay lại vào ngày mai nhé!`
+          );
+        }
+      }
+    }
+
     try {
-      // ── Bước 1: Lấy text từ PDF ───────────────────────────────────────────────
-      // Flutter đã extract và gửi lên để tiết kiệm thời gian,
-      // nhưng nếu thiếu thì download và parse lại
-      let rawText = extractedText && extractedText.trim().length > 100
-        ? extractedText
-        : await _extractTextFromStorage(storagePath);
+      // Đã xóa cơ chế fallback parse PDF vì backend không còn thư viện pdf-parse
+      if (!extractedText || extractedText.trim().length < 100) {
+        throw new HttpsError(
+          'invalid-argument',
+          'Nội dung văn bản trống. Vui lòng đảm bảo file PDF có thể đọc được chữ.'
+        );
+      }
+      const rawText = extractedText;
 
       // ── Bước 2: Làm sạch text ────────────────────────────────────────────────
       const cleanedText = _cleanText(rawText);
@@ -97,6 +120,14 @@ exports.generateExamFromPdf = onCall(
 
       const docRef = await db.collection('exams').add(examData);
 
+      
+      // cộng lượt sử dụng sau khi tạo đề 
+      await quotaRef.set({
+        date: today,
+        count: usageCount + 1,
+        updatedAt: FieldValue.serverTimestamp()
+      }, { merge: true });
+
       return {
         success: true,
         exam: { exam_id: docRef.id, ...examData },
@@ -109,27 +140,6 @@ exports.generateExamFromPdf = onCall(
     }
   }
 );
-
-
-// ════════════════════════════════════════════════════════════════════════════════
-// Helper: Download & extract text từ Storage
-// ════════════════════════════════════════════════════════════════════════════════
-async function _extractTextFromStorage(storagePath) {
-  const bucket = storage.bucket();
-  const file   = bucket.file(storagePath);
-  const [buffer] = await file.download();
-
-  //const parsed = await pdfParse(buffer);
-  const text   = parsed.text;
-
-  if (!text || text.trim().length < 100) {
-    throw new HttpsError(
-      'invalid-argument',
-      'PDF không đọc được text. Có thể là file scan ảnh.'
-    );
-  }
-  return text;
-}
 
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -150,38 +160,47 @@ function _cleanText(raw) {
 // Helper: Validate nội dung phía backend (double-check sau khi làm sạch)
 // ════════════════════════════════════════════════════════════════════════════════
 function _validateContent(text) {
-  const total = text.length;
-  if (total < 100) {
-    return { valid: false, reason: 'Nội dung PDF quá ngắn sau khi xử lý' };
+  // Loại bỏ khoảng trắng và xuống dòng để tính tỷ lệ chính xác (Chỉ đếm chữ và số)
+  const cleanText = text.replace(/\s+/g, '');
+  const totalChars = cleanText.length;
+
+  if (totalChars < 50) { 
+    return { valid: false, reason: 'Nội dung PDF quá ngắn sau khi xử lý.' };
   }
 
-  // Đếm ký tự tiếng Việt có dấu đặc trưng (ă, â, ê, ô, ơ, ư, đ và các biến thể)
-  const viPattern = /[àáâãèéêìíòóôõùúăắặẳẵằấầẩẫậđêếệểễờớợởỡưứựừửữ]/gi;
-  const viCount   = (text.match(viPattern) || []).length;
-  if (viCount / total > 0.10) {
+  // 1. Tối ưu Regex tiếng Việt (Đủ 134 ký tự có dấu)
+  const viPattern = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/gi;
+  const viCount   = (cleanText.match(viPattern) || []).length;
+  const viRatio   = viCount / totalChars;
+  
+  if (viRatio > 0.05) { 
     return {
       valid: false,
-      reason: `File chứa quá nhiều tiếng Việt (${((viCount/total)*100).toFixed(0)}%). Vui lòng dùng tài liệu tiếng Anh.`,
+      reason: `File chứa tiếng Việt (${(viRatio * 100).toFixed(1)}%). Vui lòng dùng tài liệu tiếng Anh.`,
     };
   }
 
-  // Ký tự toán học / công thức
+  // 2. Ký tự toán học / công thức
   const mathPattern = /[∑∫∂√∞±×÷≤≥≠≈α-ωΑ-Ω²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉]/g;
-  const mathCount   = (text.match(mathPattern) || []).length;
-  if (mathCount / total > 0.05) {
+  const mathCount   = (cleanText.match(mathPattern) || []).length;
+  const mathRatio   = mathCount / totalChars;
+
+  if (mathRatio > 0.05) {
     return {
       valid: false,
-      reason: `File chứa quá nhiều ký tự toán học/công thức (${((mathCount/total)*100).toFixed(0)}%). Chỉ chấp nhận tài liệu ngôn ngữ thuần túy.`,
+      reason: `File chứa quá nhiều ký tự toán học/công thức (${(mathRatio * 100).toFixed(1)}%). Chỉ chấp nhận tài liệu ngôn ngữ thuần túy.`,
     };
   }
 
-  // Tỉ lệ ký tự ASCII (a-z, A-Z, space, dấu câu cơ bản)
-  const engPattern = /[a-zA-Z0-9 .,!?;:'"()\-\n]/g;
-  const engCount   = (text.match(engPattern) || []).length;
-  if (engCount / total < 0.55) {
+  // 3. Tỉ lệ ký tự ASCII (Tiếng Anh + Số + Dấu câu)
+  const engPattern = /[a-zA-Z0-9.,!?;:'"()\-]/g;
+  const engCount   = (cleanText.match(engPattern) || []).length;
+  const engRatio   = engCount / totalChars;
+
+  if (engRatio < 0.70) { 
     return {
       valid: false,
-      reason: 'Nội dung tiếng Anh quá ít. Vui lòng chọn tài liệu tiếng Anh.',
+      reason: 'Nội dung tiếng Anh quá ít hoặc file bị mã hóa lỗi. Vui lòng chọn tài liệu tiếng Anh chuẩn.',
     };
   }
 
@@ -228,7 +247,6 @@ async function _callOpenAI(text, config) {
 
   //check do dài token
   const charCount = raw.length;
-  // SỬA console.log THÀNH logger.info
   logger.info(`[THỐNG KÊ AI] Số ký tự AI sinh ra (Output length): ${charCount} ký tự.`);
 
   if (response.usage) {
@@ -236,7 +254,6 @@ async function _callOpenAI(text, config) {
     const completionTokens = response.usage.completion_tokens;
     const totalTokens = response.usage.total_tokens;         
     
-    // SỬA console.log THÀNH logger.info
     logger.info(`[THỐNG KÊ TOKEN] Đầu vào: ${promptTokens} | Đầu ra: ${completionTokens} | Tổng cộng: ${totalTokens}`);
   }
 
@@ -249,6 +266,7 @@ async function _callOpenAI(text, config) {
   // Đánh số id từ 1
   return parsed.questions.map((q, i) => ({ ...q, id: i + 1 }));
 }
+
 
 
 // ─── Prompt hệ thống ──────────────────────────────────────────────────────────

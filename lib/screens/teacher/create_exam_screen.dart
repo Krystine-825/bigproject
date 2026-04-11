@@ -238,12 +238,22 @@ class _CreateExamScreenState extends State<CreateExamScreen> {
     } catch (e) {
       if (!mounted) return;
 
+      //Lấy thông báo lỗi đã được phiên dịch
+      final errorMessage = _getFriendlyErrorMessage(e);
+      
+      //Nếu là lỗi hết Quota thì hiện màu cam cảnh báo, lỗi khác thì hiện màu đỏ
+      final isQuotaError = errorMessage.contains('hết lượt');
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(e.toString().replaceFirst('Exception: ', '')),
-          backgroundColor: AppColors.error,
+          content: Text(errorMessage),
+          backgroundColor: isQuotaError ? Colors.orange.shade700 : AppColors.error,
+          duration: const Duration(seconds: 5), // Hiện lâu hơn một chút để GV đọc
+          behavior: SnackBarBehavior.floating,
         ),
       );
+      
+      debugPrint('Chi tiết lỗi sinh đề: $e');
     } finally {
       if (mounted) setState(() => _isGenerating = false);
     }
@@ -682,5 +692,35 @@ class _CreateExamScreenState extends State<CreateExamScreen> {
       },
     );
   }
+
+  // Hàm phiên dịch lỗi kỹ thuật sang tiếng Việt thân thiện
+  String _getFriendlyErrorMessage(dynamic error) {
+    final errorString = error.toString().toLowerCase();
+
+    // 1. Đón lỗi Hết Quota 2 đề/ngày từ Backend
+    if (errorString.contains('resource-exhausted')) {
+      return 'Bạn đã sử dụng hết lượt tạo đề bằng AI hôm nay. Vui lòng quay lại vào ngày mai nhé!';
+    }
+    
+    // 2. Các lỗi do file PDF hoặc mạng
+    if (errorString.contains('invalid-argument')) {
+      return 'Dữ liệu không hợp lệ. Hãy đảm bảo file PDF rõ chữ và có nội dung tiếng Anh.';
+    }
+    if (errorString.contains('network') || errorString.contains('socket')) {
+      return 'Lỗi kết nối mạng. Vui lòng kiểm tra lại Wifi/4G.';
+    }
+    if (errorString.contains('timeout') || errorString.contains('deadline-exceeded')) {
+      return 'Hệ thống AI đang quá tải, quá trình sinh đề mất nhiều thời gian hơn dự kiến. Vui lòng thử lại.';
+    }
+    
+    // 3. Lỗi thông thường (từ file validator)
+    if (error.toString().startsWith('Exception: ')) {
+      return error.toString().replaceFirst('Exception: ', '');
+    }
+
+    return 'Đã xảy ra lỗi khi kết nối với AI. Vui lòng thử lại sau.';
+  }
+
+
 
 }

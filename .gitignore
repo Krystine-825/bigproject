@@ -49,7 +49,7 @@ app.*.map.json
 .env
 .env.*
 *.env
-
+functions/.env
 # Node modules (nếu có dùng Node, backend, tool AI, etc.)
 node_modules/
 **/node_modules/
