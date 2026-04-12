@@ -27,6 +27,7 @@ class _CreateExamScreenState extends State<CreateExamScreen> {
   String? _extractedText;
   bool    _isExtracting = false;
   bool    _fileIsValid  = false;
+  
 
  
   int    _questionCount = 10; 
@@ -225,13 +226,14 @@ class _CreateExamScreenState extends State<CreateExamScreen> {
         questionCount: _questionCount,
         difficulty: _difficulty,
       );
+      final finalExam = exam.copyWith(name: name);
 
       if (!mounted) return;
 
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => ExamPreviewScreen(exam: exam),
+          builder: (_) => ExamPreviewScreen(exam: finalExam),
         ),
       );
 

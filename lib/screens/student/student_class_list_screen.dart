@@ -3,6 +3,7 @@ import '../../core/app_colors.dart';
 import '../../widgets/common/custom_button_nav_student.dart';
 import 'join_class_screen.dart';
 import '../../controllers/class_controller.dart';
+import 'student_class_detail_screen.dart';
 
 class StudentClassListScreen extends StatefulWidget {
   const StudentClassListScreen({super.key});
@@ -231,11 +232,26 @@ class _StudentClassListScreenState extends State<StudentClassListScreen> {
     );
   }
 
-  Widget classCard(Map<String, dynamic> cls) {
-    final isCompleted = (cls['status'] ?? 'inProgress') == 'completed';
-    final newCount = cls['newCount'] as int? ?? 0;
+ Widget classCard(Map<String, dynamic> cls) {
+  final isCompleted = (cls['status'] ?? 'inProgress') == 'completed';
+  final newCount = cls['newCount'] as int? ?? 0;
 
-    return Container(
+  return GestureDetector(
+    onTap: () {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => StudentClassDetailScreen(
+            classId: cls['classId'] as String,           // ← Truyền classId quan trọng nhất
+            className: cls['name'] as String,
+            teacherName: cls['teacher'] as String,
+            // Có thể truyền thêm nếu sau này cần
+            code: cls['code'] as String? ?? '',
+          ),
+        ),
+      );
+    },
+    child: Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -292,8 +308,7 @@ class _StudentClassListScreenState extends State<StudentClassListScreen> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
-                              color:
-                                  const Color(0xFFFF9800).withOpacity(0.1),
+                              color: const Color(0xFFFF9800).withOpacity(0.1),
                               borderRadius: BorderRadius.circular(999),
                             ),
                             child: Text(
@@ -339,8 +354,9 @@ class _StudentClassListScreenState extends State<StudentClassListScreen> {
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget bottomNav() {
     return const CustomBottomNavSt(currentIndex: 1); // Tab Lớp học đang active

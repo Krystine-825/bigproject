@@ -111,9 +111,7 @@ exports.generateExamFromPdf = onCall(
 );
 
 
-// ════════════════════════════════════════════════════════════════════════════════
-// Helper: Download & extract text từ Storage
-// ════════════════════════════════════════════════════════════════════════════════
+
 async function _extractTextFromStorage(storagePath) {
   const bucket = storage.bucket();
   const file   = bucket.file(storagePath);
@@ -132,9 +130,7 @@ async function _extractTextFromStorage(storagePath) {
 }
 
 
-// ════════════════════════════════════════════════════════════════════════════════
-// Helper: Làm sạch text
-// ════════════════════════════════════════════════════════════════════════════════
+
 function _cleanText(raw) {
   return raw
     .replace(/\r\n/g, '\n')         // chuẩn hoá xuống dòng
@@ -146,9 +142,6 @@ function _cleanText(raw) {
 }
 
 
-// ════════════════════════════════════════════════════════════════════════════════
-// Helper: Validate nội dung phía backend (double-check sau khi làm sạch)
-// ════════════════════════════════════════════════════════════════════════════════
 function _validateContent(text) {
   const total = text.length;
   if (total < 100) {
@@ -237,8 +230,7 @@ async function _callOpenAI(text, config) {
     
     console.log(`[THỐNG KÊ TOKEN] Đầu vào: ${promptTokens} | Đầu ra: ${completionTokens} | Tổng cộng: ${totalTokens}`);
   }
-  // ════════════════════════════════════════════════════════════════════════
-
+ 
   const parsed = JSON.parse(raw);
 
   if (!parsed.questions || !Array.isArray(parsed.questions)) {

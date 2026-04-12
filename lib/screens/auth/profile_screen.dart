@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/app_colors.dart';
 import '../../widgets/common/custom_text_field.dart';
 import '../teacher/dashboard_screen.dart';
@@ -24,6 +25,15 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     _nameCtrl.dispose();
     _phoneCtrl.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    final googleName = FirebaseAuth.instance.currentUser?.displayName;
+    if (googleName != null && googleName.isNotEmpty) {
+      _nameCtrl.text = googleName;
+    }
   }
 
 void _showError(String msg) {

@@ -24,7 +24,7 @@ class _ClassListScreenState extends State<ClassListScreen> {
     super.dispose();
   }
 
-  // ─── Lọc theo search ─────────────────────────────────────────────────────────
+
   List<ClassModel> _filter(List<ClassModel> all) {
     if (_searchText.isEmpty) return all;
     return all
@@ -32,7 +32,7 @@ class _ClassListScreenState extends State<ClassListScreen> {
         .toList();
   }
 
-  // ─── Mở CreateClassScreen, nhận ClassModel trả về để refresh ngay ────────────
+  
   Future<void> _goCreate() async {
     // StreamBuilder tự refresh — push và chờ kết quả (ClassModel hoặc null)
     await Navigator.push<ClassModel>(
@@ -113,7 +113,7 @@ class _ClassListScreenState extends State<ClassListScreen> {
     );
   }
 
-  // ─── StreamBuilder — tự cập nhật realtime khi Firestore thay đổi ─────────────
+
   Widget _buildClassList() {
     return StreamBuilder<List<ClassModel>>(
       stream: _classController.streamMyClasses(),

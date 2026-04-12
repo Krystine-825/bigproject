@@ -4,6 +4,7 @@ class ClassModel {
   final String code;
   final String teacherId;
   final String? passwordHash;
+  final int studentCount;
 
   const ClassModel({
     required this.id,
@@ -11,6 +12,7 @@ class ClassModel {
     required this.code,
     required this.teacherId,
     this.passwordHash,
+    this.studentCount = 0,
   });
 
   factory ClassModel.fromJson(Map<String, dynamic> json, {required String id}) {
@@ -20,6 +22,7 @@ class ClassModel {
       code: json['code'] ?? '',
       teacherId: json['teacher_id'] ?? '',
       passwordHash: json['password_hash'],
+      studentCount: (json['student_count'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -29,6 +32,7 @@ class ClassModel {
       'code': code,
       'teacher_id': teacherId,
       'created_at': DateTime.now().toIso8601String(), // thêm để sort được
+        'student_count': studentCount,
       if (passwordHash != null && passwordHash!.isNotEmpty)
         'password_hash': passwordHash,
     };
