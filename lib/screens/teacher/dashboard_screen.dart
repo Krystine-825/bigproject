@@ -1,7 +1,18 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import 'class_list_screen.dart';
+import 'class_detail_screen.dart';
 import '../../widgets/common/custom_button_nav.dart';
+<<<<<<< HEAD
+=======
+import '../../controllers/auth_controller.dart';
+import '../../controllers/class_controller.dart';
+import '../../controllers/exam_controller.dart';
+import '../../data/models/class_model.dart';
+import '../../data/models/exam_model.dart';
+import '../../data/services/firestore_service.dart';
+import '../../data/services/auth_service.dart';
+>>>>>>> fbbb185266d5a68084278b3b8f8327bb1bbbae36
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -12,43 +23,20 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   int _selectedNav = 0;
-  int _selectedClass = 0;
+  String _teacherName = '';
+  final _classController = ClassController();
+  final _examController  = ExamController();
 
-  // Data tạm — sau thay bằng Firestore
-  final _stats = [
-    {'icon': Icons.school_rounded, 'label': 'Lớp học', 'value': '12'},
-    {'icon': Icons.group_rounded, 'label': 'Học sinh', 'value': '450'},
-    {'icon': Icons.description_rounded, 'label': 'Đề thi', 'value': '86'},
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadName();
+  }
 
-  final _classes = ['12A1 - B1', '11B2 - A2', '10C3 - B2', '12D1 - A1'];
-
-  final _activities = [
-    {
-      'icon': Icons.task_alt_rounded,
-      'bgColor': Color(0xFFEFF6FF),
-      'iconColor': Color(0xFF007BFF),
-      'title': 'Đã chấm bài thi',
-      'subtitle': 'Kiểm tra 15p - Lớp 12A1',
-      'time': '10 phút trước',
-    },
-    {
-      'icon': Icons.note_add_rounded,
-      'bgColor': Color(0xFFFFF7ED),
-      'iconColor': Color(0xFFF97316),
-      'title': 'Đề thi mới được tạo',
-      'subtitle': 'Giữa học kỳ 2 - Môn Toán',
-      'time': '1 giờ trước',
-    },
-    {
-      'icon': Icons.group_add_rounded,
-      'bgColor': Color(0xFFF0FDF4),
-      'iconColor': Color(0xFF22C55E),
-      'title': 'Học sinh mới tham gia',
-      'subtitle': 'Lê Văn Bình - Lớp 11B2',
-      'time': '3 giờ trước',
-    },
-  ];
+  Future<void> _loadName() async {
+    final name = await AuthController().getUserName();
+    if (mounted) setState(() => _teacherName = name ?? 'Giáo viên');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -77,13 +65,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+<<<<<<< HEAD
+=======
+  // ─── Header ──────────────────────────────────────────────────────────────────
+>>>>>>> fbbb185266d5a68084278b3b8f8327bb1bbbae36
   Widget _header() {
     return Container(
       color: AppColors.white,
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
       child: Row(
         children: [
-          // Avatar + tên
           Row(
             children: [
               Stack(
@@ -106,7 +97,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                     ),
                   ),
-                  // Chấm xanh online
                   Positioned(
                     bottom: 0,
                     right: 0,
@@ -126,13 +116,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+<<<<<<< HEAD
                   Text(
                     'Xin chào,',
                     style: TextStyle(fontSize: 13, color: AppColors.textLight),
                   ),
+=======
+>>>>>>> fbbb185266d5a68084278b3b8f8327bb1bbbae36
                   const Text(
-                    'Nguyễn Văn A',
-                    style: TextStyle(
+                    'Xin chào,',
+                    style: TextStyle(fontSize: 13, color: AppColors.textLight),
+                  ),
+                  Text(
+                    _teacherName,
+                    style: const TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.bold,
                       color: AppColors.textDark,
@@ -143,7 +140,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ],
           ),
           const Spacer(),
-          // Nút thông báo
           Container(
             width: 40,
             height: 40,
@@ -169,6 +165,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+<<<<<<< HEAD
   Widget _statsSection() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
@@ -203,26 +200,71 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     style: const TextStyle(
                       fontSize: 11,
                       color: AppColors.textLight,
+=======
+  // ─── Stats — dùng stream lớp + stream đề thi ─────────────────────────────────
+  Widget _statsSection() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+      child: StreamBuilder<List<ClassModel>>(
+        stream: _classController.streamMyClasses(),
+        builder: (context, classSnap) {
+          return StreamBuilder<List<ExamModel>>(
+            stream: _examController.streamMyExams(),
+            builder: (context, examSnap) {
+              final classes     = classSnap.data ?? [];
+              final classCount  = classes.length;
+              final studentCount = classes.fold<int>(0, (s, c) => s + c.studentCount);
+              final examCount   = examSnap.data?.length ?? 0;
+
+              final stats = [
+                {'icon': Icons.school_rounded,      'label': 'Lớp học',  'value': '$classCount'},
+                {'icon': Icons.group_rounded,        'label': 'Học sinh', 'value': '$studentCount'},
+                {'icon': Icons.description_rounded,  'label': 'Đề thi',   'value': '$examCount'},
+              ];
+
+              return Row(
+                children: stats.map((stat) {
+                  final isLast = stat == stats.last;
+                  return Expanded(
+                    child: Container(
+                      margin: EdgeInsets.only(right: isLast ? 0 : 12),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.white,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Column(
+                        children: [
+                          Icon(stat['icon'] as IconData, color: AppColors.primary),
+                          const SizedBox(height: 8),
+                          Text(stat['label'] as String,
+                              style: const TextStyle(fontSize: 12, color: AppColors.textMedium)),
+                          const SizedBox(height: 4),
+                          Text(
+                            stat['value'] as String,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
+                                color: AppColors.textDark),
+                          ),
+                        ],
+                      ),
+>>>>>>> fbbb185266d5a68084278b3b8f8327bb1bbbae36
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    stat['value'] as String,
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textDark,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+                  );
+                }).toList(),
+              );
+            },
           );
-        }).toList(),
+        },
       ),
     );
   }
 
+<<<<<<< HEAD
+=======
+  // ─── Lớp học — chip tap → ClassDetailScreen ──────────────────────────────────
+>>>>>>> fbbb185266d5a68084278b3b8f8327bb1bbbae36
   Widget _classesSection() {
     return Column(
       children: [
@@ -240,9 +282,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ),
               GestureDetector(
-                onTap: () {
-                  // TODO: sang màn danh sách lớp
-                },
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ClassListScreen()),
+                ),
                 child: const Text(
                   'Xem tất cả',
                   style: TextStyle(
@@ -255,9 +298,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ],
           ),
         ),
-        // Danh sách lớp cuộn ngang
         SizedBox(
           height: 40,
+<<<<<<< HEAD
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -295,10 +338,77 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
                         color: selected ? AppColors.white : AppColors.textDark,
+=======
+          child: StreamBuilder<List<ClassModel>>(
+            stream: _classController.streamMyClasses(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                );
+              }
+              final classes = (snapshot.data ?? []).take(5).toList();
+              if (classes.isEmpty) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 24),
+                  child: Text(
+                    'Chưa có lớp học nào',
+                    style: TextStyle(fontSize: 13, color: AppColors.textLight),
+                  ),
+                );
+              }
+              return ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                itemCount: classes.length,
+                itemBuilder: (_, i) {
+                  final cls = classes[i];
+                  return GestureDetector(
+                    // ← Tap mở ClassDetailScreen với dữ liệu thật
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ClassDetailScreen(
+                          classId:   cls.id,
+                          className: cls.name,
+                          classCode: cls.code,
+                        ),
+>>>>>>> fbbb185266d5a68084278b3b8f8327bb1bbbae36
                       ),
                     ),
-                  ),
-                ),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      margin: const EdgeInsets.only(right: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      decoration: BoxDecoration(
+                        color: AppColors.white,
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.04),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Center(
+                        child: Text(
+                          cls.name,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.textDark,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
               );
             },
           ),
@@ -307,6 +417,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+<<<<<<< HEAD
+=======
+  // ─── Hoạt động gần đây — stream thật ─────────────────────────────────────────
+>>>>>>> fbbb185266d5a68084278b3b8f8327bb1bbbae36
   Widget _activitiesSection() {
     return Column(
       children: [
@@ -323,33 +437,142 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   color: AppColors.textDark,
                 ),
               ),
-              GestureDetector(
-                onTap: () {
-                  // TODO: sang màn lịch sử
-                },
-                child: const Text(
-                  'Lịch sử',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
             ],
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            children: _activities.take(3).map((a) => _activityCard(a)).toList(),
-          ),
+        _RecentActivitiesWidget(
+          classController: _classController,
+          examController:  _examController,
         ),
       ],
     );
   }
+}
+
+// ─── Widget riêng để kết hợp 2 stream (lớp + đề thi) thành activity feed ───────
+class _RecentActivitiesWidget extends StatelessWidget {
+  final ClassController classController;
+  final ExamController  examController;
+
+  const _RecentActivitiesWidget({
+    required this.classController,
+    required this.examController,
+  });
+
+  String _timeAgo(String isoString) {
+    try {
+      final dt   = DateTime.parse(isoString).toLocal();
+      final diff = DateTime.now().difference(dt);
+      if (diff.inMinutes < 1)  return 'Vừa xong';
+      if (diff.inMinutes < 60) return '${diff.inMinutes} phút trước';
+      if (diff.inHours   < 24) return '${diff.inHours} giờ trước';
+      if (diff.inDays    < 7)  return '${diff.inDays} ngày trước';
+      return '${dt.day}/${dt.month}/${dt.year}';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<ExamModel>>(
+      stream: examController.streamMyExams(),
+      builder: (context, examSnap) {
+        return StreamBuilder<List<ClassModel>>(
+          stream: classController.streamMyClasses(),
+          builder: (context, classSnap) {
+            final activities = <Map<String, dynamic>>[];
+
+            // ── Đề thi vừa tạo / vừa giao ────────────────────────────────────
+            for (final exam in (examSnap.data ?? [])) {
+              if (exam.isAssigned) {
+                // Lấy lần giao gần nhất
+                final lastAssign = exam.assignments.isNotEmpty
+                    ? exam.assignments.last
+                    : null;
+                activities.add({
+                  'icon':      Icons.send_rounded,
+                  'bgColor':   const Color(0xFFEFF6FF),
+                  'iconColor': const Color(0xFF007BFF),
+                  'title':     'Đề thi đã được giao',
+                  'subtitle':  '${exam.name} → ${lastAssign?.className ?? ''}',
+                  'sortKey':   lastAssign?.assignedAt ?? exam.createdAt,
+                });
+              } else {
+                activities.add({
+                  'icon':      Icons.note_add_rounded,
+                  'bgColor':   const Color(0xFFFFF7ED),
+                  'iconColor': const Color(0xFFF97316),
+                  'title':     'Đề thi mới được tạo',
+                  'subtitle':  exam.name,
+                  'sortKey':   exam.createdAt,
+                });
+              }
+            }
+
+            // ── Lớp vừa tạo ──────────────────────────────────────────────────
+            // (Dùng studentCount > 0 để phân biệt lớp có học sinh)
+            for (final cls in (classSnap.data ?? [])) {
+              if (cls.studentCount > 0) {
+                activities.add({
+                  'icon':      Icons.group_add_rounded,
+                  'bgColor':   const Color(0xFFF0FDF4),
+                  'iconColor': const Color(0xFF22C55E),
+                  'title':     'Lớp đang có học sinh',
+                  'subtitle':  '${cls.name} · ${cls.studentCount} học sinh',
+                  'sortKey':   '', // không có created_at ở đây nên để cuối
+                });
+              }
+            }
+
+            // Sắp xếp mới nhất trước
+            activities.sort((a, b) =>
+                (b['sortKey'] as String).compareTo(a['sortKey'] as String));
+
+            final display = activities.take(5).toList();
+
+            if (display.isEmpty) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: AppColors.white,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.inbox_rounded,
+                          color: AppColors.textHint, size: 20),
+                      SizedBox(width: 8),
+                      Text(
+                        'Chưa có hoạt động nào',
+                        style: TextStyle(
+                            color: AppColors.textHint, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                children: display.map((a) => _activityCard(a)).toList(),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
 
   Widget _activityCard(Map<String, dynamic> a) {
+    final timeStr = (a['sortKey'] as String).isNotEmpty
+        ? _timeAgo(a['sortKey'] as String)
+        : '';
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -367,7 +590,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
       child: Row(
         children: [
-          // Icon box
           Container(
             width: 48,
             height: 48,
@@ -382,7 +604,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
           const SizedBox(width: 12),
-          // Nội dung
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -399,22 +620,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 Text(
                   a['subtitle'] as String,
                   style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textLight,
-                  ),
+                      fontSize: 12, color: AppColors.textLight),
                 ),
               ],
             ),
           ),
+<<<<<<< HEAD
           // Thời gian
           Text(
             a['time'] as String,
             style: const TextStyle(fontSize: 10, color: AppColors.textHint),
           ),
+=======
+          if (timeStr.isNotEmpty)
+            Text(
+              timeStr,
+              style: const TextStyle(fontSize: 10, color: AppColors.textHint),
+            ),
+>>>>>>> fbbb185266d5a68084278b3b8f8327bb1bbbae36
         ],
       ),
     );
   }
+<<<<<<< HEAD
 
   void onNavTapped(int i) {
     setState(() {
@@ -432,3 +660,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 }
+=======
+}
+>>>>>>> fbbb185266d5a68084278b3b8f8327bb1bbbae36

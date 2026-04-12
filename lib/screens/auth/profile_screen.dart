@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/app_colors.dart';
 import '../../widgets/common/custom_text_field.dart';
 import '../teacher/dashboard_screen.dart';
@@ -26,6 +27,18 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     super.dispose();
   }
 
+<<<<<<< HEAD
+=======
+  @override
+  void initState() {
+    super.initState();
+    final googleName = FirebaseAuth.instance.currentUser?.displayName;
+    if (googleName != null && googleName.isNotEmpty) {
+      _nameCtrl.text = googleName;
+    }
+  }
+
+>>>>>>> fbbb185266d5a68084278b3b8f8327bb1bbbae36
 void _showError(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(msg),

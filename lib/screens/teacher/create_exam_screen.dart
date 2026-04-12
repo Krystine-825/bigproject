@@ -27,6 +27,7 @@ class _CreateExamScreenState extends State<CreateExamScreen> {
   String? _extractedText;
   bool    _isExtracting = false;
   bool    _fileIsValid  = false;
+  
 
  
   int    _questionCount = 10; 
@@ -225,19 +226,28 @@ class _CreateExamScreenState extends State<CreateExamScreen> {
         questionCount: _questionCount,
         difficulty: _difficulty,
       );
+<<<<<<< HEAD
+=======
+      final finalExam = exam.copyWith(name: name);
+>>>>>>> fbbb185266d5a68084278b3b8f8327bb1bbbae36
 
       if (!mounted) return;
 
       Navigator.push(
         context,
         MaterialPageRoute(
+<<<<<<< HEAD
           builder: (_) => ExamPreviewScreen(exam: exam),
+=======
+          builder: (_) => ExamPreviewScreen(exam: finalExam),
+>>>>>>> fbbb185266d5a68084278b3b8f8327bb1bbbae36
         ),
       );
 
     } catch (e) {
       if (!mounted) return;
 
+<<<<<<< HEAD
       //Lấy thông báo lỗi đã được phiên dịch
       final errorMessage = _getFriendlyErrorMessage(e);
       
@@ -254,6 +264,14 @@ class _CreateExamScreenState extends State<CreateExamScreen> {
       );
       
       debugPrint('Chi tiết lỗi sinh đề: $e');
+=======
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: AppColors.error,
+        ),
+      );
+>>>>>>> fbbb185266d5a68084278b3b8f8327bb1bbbae36
     } finally {
       if (mounted) setState(() => _isGenerating = false);
     }
@@ -693,6 +711,7 @@ class _CreateExamScreenState extends State<CreateExamScreen> {
     );
   }
 
+<<<<<<< HEAD
   // Hàm phiên dịch lỗi kỹ thuật sang tiếng Việt thân thiện
   String _getFriendlyErrorMessage(dynamic error) {
     final errorString = error.toString().toLowerCase();
@@ -723,4 +742,6 @@ class _CreateExamScreenState extends State<CreateExamScreen> {
 
 
 
+=======
+>>>>>>> fbbb185266d5a68084278b3b8f8327bb1bbbae36
 }

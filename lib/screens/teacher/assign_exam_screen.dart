@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../data/models/exam_model.dart';
 import '../../controllers/exam_controller.dart';
+import 'exam_bank_screen.dart';
 
 class AssignExamScreen extends StatefulWidget {
   final ExamModel exam;
@@ -14,18 +15,15 @@ class AssignExamScreen extends StatefulWidget {
 class _AssignExamScreenState extends State<AssignExamScreen> {
   final _controller = ExamController();
 
-  
-  List<Map<String, String>> _classes      = [];
-  String?                   _selectedClassId;
-  String?                   _selectedClassName;
+  List<Map<String, String>> _classes         = [];
+  Set<String>               _selectedIds     = {};   // ← multi-select
   bool                      _isLoadingClasses = true;
 
-  int      _durationMinutes = 45;   // thời gian làm bài
+  int      _durationMinutes = 45;
   DateTime _openAt  = DateTime.now().add(const Duration(hours: 1));
   DateTime _closeAt = DateTime.now().add(const Duration(days: 7));
-  int      _maxAttempts = 1;        // 1 hoặc 2 lần
-
-  bool _isAssigning = false;
+  int      _maxAttempts = 1;
+  bool     _isAssigning = false;
 
   @override
   void initState() {
@@ -35,24 +33,49 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
 
   Future<void> _loadClasses() async {
     try {
-      final list = await _controller.getMyClasses();
+      final all = await _controller.getMyClasses();
+      // Lọc ra những lớp chưa được giao đề này
+      final assignedIds = widget.exam.assignments.map((a) => a.classId).toSet();
+      final available   = all.where((c) => !assignedIds.contains(c['id'])).toList();
+
       setState(() {
-        _classes          = list;
+        _classes          = available;
         _isLoadingClasses = false;
-        if (list.isNotEmpty) {
-          _selectedClassId   = list.first['id'];
-          _selectedClassName = list.first['name'];
-        }
       });
     } catch (_) {
       setState(() => _isLoadingClasses = false);
     }
   }
 
-  //giao đề
+ 
+  bool get _allSelected =>
+      _classes.isNotEmpty &&
+      _classes.every((c) => _selectedIds.contains(c['id']));
+
+  void _toggleSelectAll() {
+    setState(() {
+      if (_allSelected) {
+        _selectedIds.clear();
+      } else {
+        _selectedIds = _classes.map((c) => c['id']!).toSet();
+      }
+    });
+  }
+
+  void _toggleClass(String id) {
+    setState(() {
+      if (_selectedIds.contains(id)) {
+        _selectedIds.remove(id);
+      } else {
+        _selectedIds.add(id);
+      }
+    });
+  }
+
+  
   Future<void> _handleAssign() async {
-    if (_selectedClassId == null) {
-      _snack('Vui lòng chọn lớp', isError: true);
+    if (_selectedIds.isEmpty) {
+      _snack('Vui lòng chọn ít nhất 1 lớp', isError: true);
       return;
     }
     if (_closeAt.isBefore(_openAt)) {
@@ -61,26 +84,42 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
     }
 
     setState(() => _isAssigning = true);
+    final errors = <String>[];
+
     try {
-      await _controller.assignExam(
-        examId:          widget.exam.id,
-        classId:         _selectedClassId!,
-        durationMinutes: _durationMinutes,
-        openAt:          _openAt,
-        closeAt:         _closeAt,
-        maxAttempts:     _maxAttempts,
-      );
+      for (final id in _selectedIds) {
+        final cls = _classes.firstWhere((c) => c['id'] == id);
+        try {
+          await _controller.assignExam(
+            examId:          widget.exam.id,
+            classId:         id,
+            className:       cls['name']!,
+            durationMinutes: _durationMinutes,
+            openAt:          _openAt,
+            closeAt:         _closeAt,
+            maxAttempts:     _maxAttempts,
+          );
+        } catch (e) {
+          errors.add(cls['name']!);
+        }
+      }
+
       if (!mounted) return;
-      _showSuccessDialog();
-    } catch (e) {
-      if (!mounted) return;
-      _snack(e.toString().replaceFirst('Exception: ', ''), isError: true);
+      if (errors.isEmpty) {
+        _showSuccessDialog(_selectedIds.length);
+      } else {
+        _snack('Lỗi khi giao cho: ${errors.join(', ')}', isError: true);
+      }
     } finally {
       if (mounted) setState(() => _isAssigning = false);
     }
   }
 
-  void _showSuccessDialog() {
+  void _showSuccessDialog(int count) {
+    final classNames = _selectedIds
+        .map((id) => _classes.firstWhere((c) => c['id'] == id)['name']!)
+        .join(', ');
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -92,37 +131,45 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
           Text('Giao đề thành công!',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         ]),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Icon(Icons.assignment_turned_in_rounded,
-              size: 56, color: AppColors.primary),
-          const SizedBox(height: 12),
-          Text(widget.exam.name,
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.assignment_turned_in_rounded,
+                size: 56, color: AppColors.primary),
+            const SizedBox(height: 12),
+            Text(widget.exam.name,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 16,
+                    fontWeight: FontWeight.bold, color: AppColors.textDark)),
+            const SizedBox(height: 6),
+            Text(
+              count == 1
+                  ? 'Đã giao cho lớp $classNames'
+                  : 'Đã giao cho $count lớp:\n$classNames',
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 16,
-                  fontWeight: FontWeight.bold, color: AppColors.textDark)),
-          const SizedBox(height: 6),
-          Text('đã được giao cho lớp $_selectedClassName',
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 13,
-                  color: AppColors.textMedium)),
-        ]),
+              style: const TextStyle(fontSize: 13, color: AppColors.textMedium),
+            ),
+          ],
+        ),
         actions: [
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
               onPressed: () {
-                // Đóng dialog + về kho đề (pop hết stack đến màn kho đề)
-                Navigator.of(context)
-                  ..pop()            // đóng dialog
-                  ..popUntil((route) => route.isFirst);
+                Navigator.of(context).pop();
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const ExamBankScreen()),
+                  (route) => route.isFirst,
+                );
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: AppColors.white,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(vertical: 14),
               ),
-              child: const Text('Về kho đề'),
+              child: const Text('Về Kho đề', style: TextStyle(fontSize: 16)),
             ),
           ),
         ],
@@ -139,7 +186,6 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
     ));
   }
 
- 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -153,20 +199,25 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Info đề
                   _buildExamInfoCard(),
                   const SizedBox(height: 20),
-                  // Chọn lớp
-                  _buildSectionTitle('Chọn lớp'),
+
+                  // Lớp đã được giao trước đó
+                  if (widget.exam.assignments.isNotEmpty) ...[
+                    _buildSectionTitle('Đã giao cho'),
+                    const SizedBox(height: 10),
+                    _buildAssignedList(),
+                    const SizedBox(height: 20),
+                  ],
+
+                  _buildSectionTitle('Chọn lớp để giao'),
                   const SizedBox(height: 10),
-                  _buildClassPicker(),
+                  _buildClassMultiSelect(),
                   const SizedBox(height: 20),
-                  // Thời gian
                   _buildSectionTitle('Cài đặt thời gian'),
                   const SizedBox(height: 10),
                   _buildTimeCard(),
                   const SizedBox(height: 20),
-                  // Số lần làm
                   _buildSectionTitle('Số lần làm bài'),
                   const SizedBox(height: 10),
                   _buildAttemptsCard(),
@@ -180,7 +231,6 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
     );
   }
 
-  
   Widget _buildHeader() {
     return Container(
       color: AppColors.white,
@@ -206,7 +256,6 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
       style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold,
           color: AppColors.textDark));
 
- 
   Widget _buildExamInfoCard() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -230,65 +279,205 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
           children: [
             Text(widget.exam.name,
                 style: const TextStyle(fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primary),
+                    fontWeight: FontWeight.bold, color: AppColors.primary),
                 maxLines: 1, overflow: TextOverflow.ellipsis),
             const SizedBox(height: 4),
             Text('${widget.exam.questions.length} câu hỏi',
-                style: const TextStyle(fontSize: 12,
-                    color: AppColors.primary)),
+                style: const TextStyle(fontSize: 12, color: AppColors.primary)),
           ],
         )),
       ]),
     );
   }
 
+  Widget _buildAssignedList() {
+    return Column(
+      children: widget.exam.assignments.map((a) => Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.successBg,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.success.withOpacity(0.3)),
+        ),
+        child: Row(children: [
+          const Icon(Icons.check_circle_rounded,
+              size: 18, color: AppColors.success),
+          const SizedBox(width: 10),
+          Expanded(child: Text(a.className,
+              style: const TextStyle(fontSize: 14,
+                  fontWeight: FontWeight.w600, color: AppColors.textDark))),
+          Text('${a.durationMinutes} phút',
+              style: const TextStyle(fontSize: 12,
+                  color: AppColors.textMedium)),
+        ]),
+      )).toList(),
+    );
+  }
+
  
-  Widget _buildClassPicker() {
+  Widget _buildClassMultiSelect() {
     if (_isLoadingClasses) {
       return const Center(
-          child: Padding(padding: EdgeInsets.all(20),
-              child: CircularProgressIndicator()));
-    }
-    if (_classes.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: AppColors.white,
-            borderRadius: BorderRadius.circular(16)),
-        child: const Center(child: Text('Bạn chưa có lớp nào',
-            style: TextStyle(color: AppColors.textMedium))),
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: CircularProgressIndicator(),
+        ),
       );
     }
+
+    if (_classes.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: const Center(
+          child: Text(
+            'Tất cả lớp đã được giao đề này',
+            style: TextStyle(color: AppColors.textMedium),
+          ),
+        ),
+      );
+    }
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04),
             blurRadius: 8, offset: const Offset(0, 2))],
       ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: _selectedClassId,
-          isExpanded: true,
-          style: const TextStyle(fontSize: 14, color: AppColors.textDark),
-          icon: const Icon(Icons.keyboard_arrow_down_rounded,
-              color: AppColors.textMedium),
-          items: _classes.map((c) => DropdownMenuItem(
-            value: c['id'],
-            child: Text(c['name']!),
-          )).toList(),
-          onChanged: (v) => setState(() {
-            _selectedClassId   = v;
-            _selectedClassName = _classes
-                .firstWhere((c) => c['id'] == v)['name'];
+      child: Column(
+        children: [
+        
+          InkWell(
+            onTap: _toggleSelectAll,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              child: Row(children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  width: 22, height: 22,
+                  decoration: BoxDecoration(
+                    color: _allSelected ? AppColors.primary : Colors.transparent,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: _allSelected ? AppColors.primary : AppColors.border,
+                      width: 2,
+                    ),
+                  ),
+                  child: _allSelected
+                      ? const Icon(Icons.check_rounded,
+                          size: 14, color: Colors.white)
+                      : null,
+                ),
+                const SizedBox(width: 14),
+                const Expanded(
+                  child: Text('Chọn tất cả',
+                      style: TextStyle(fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textDark)),
+                ),
+                Text(
+                  '${_selectedIds.length}/${_classes.length} lớp',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: _selectedIds.isNotEmpty
+                        ? AppColors.primary
+                        : AppColors.textHint,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ]),
+            ),
+          ),
+
+          const Divider(height: 1, indent: 16, endIndent: 16),
+
+      //danh sách lớp
+          ...List.generate(_classes.length, (i) {
+            final cls        = _classes[i];
+            final id         = cls['id']!;
+            final name       = cls['name']!;
+            final isChecked  = _selectedIds.contains(id);
+            final isLast     = i == _classes.length - 1;
+
+            return Column(
+              children: [
+                InkWell(
+                  onTap: () => _toggleClass(id),
+                  borderRadius: isLast
+                      ? const BorderRadius.vertical(
+                          bottom: Radius.circular(16))
+                      : BorderRadius.zero,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 14),
+                    child: Row(children: [
+                      // Checkbox tùy chỉnh
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        width: 22, height: 22,
+                        decoration: BoxDecoration(
+                          color: isChecked
+                              ? AppColors.primary
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: isChecked
+                                ? AppColors.primary
+                                : AppColors.border,
+                            width: 2,
+                          ),
+                        ),
+                        child: isChecked
+                            ? const Icon(Icons.check_rounded,
+                                size: 14, color: Colors.white)
+                            : null,
+                      ),
+                      const SizedBox(width: 14),
+
+                      // Icon lớp
+                      Container(
+                        width: 38, height: 38,
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryLight,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(Icons.school_rounded,
+                            color: AppColors.primary, size: 20),
+                      ),
+                      const SizedBox(width: 12),
+
+                      // Tên lớp
+                      Expanded(
+                        child: Text(name,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: isChecked
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                              color: isChecked
+                                  ? AppColors.textDark
+                                  : AppColors.textMedium,
+                            )),
+                      ),
+                    ]),
+                  ),
+                ),
+                if (!isLast)
+                  const Divider(height: 1, indent: 52, endIndent: 16),
+              ],
+            );
           }),
-        ),
+        ],
       ),
     );
   }
 
- 
   Widget _buildTimeCard() {
     return Container(
       decoration: BoxDecoration(
@@ -298,8 +487,6 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
             blurRadius: 8, offset: const Offset(0, 2))],
       ),
       child: Column(children: [
-
-        // Thời gian làm bài
         _timeRow(
           icon: Icons.timer_outlined,
           label: 'Thời gian làm bài',
@@ -307,9 +494,9 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
           child: Row(children: [
             _smallBtn(Icons.remove_rounded,
                 _durationMinutes > 10
-                    ? () => setState(() => _durationMinutes -= 5)
-                    : null),
-            SizedBox(width: 52,
+                    ? () => setState(() => _durationMinutes -= 5) : null),
+            SizedBox(
+                width: 52,
                 child: Text('$_durationMinutes ph',
                     textAlign: TextAlign.center,
                     style: const TextStyle(fontSize: 14,
@@ -317,38 +504,31 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
                         color: AppColors.textDark))),
             _smallBtn(Icons.add_rounded,
                 _durationMinutes < 180
-                    ? () => setState(() => _durationMinutes += 5)
-                    : null),
+                    ? () => setState(() => _durationMinutes += 5) : null),
           ]),
         ),
         const Divider(height: 1),
-
-        // Thời gian mở đề
         _timeRow(
           icon: Icons.lock_open_rounded,
           label: 'Mở đề lúc',
           value: _formatDateTime(_openAt),
           child: IconButton(
             onPressed: () => _pickDateTime(
-              initial: _openAt,
-              onPicked: (dt) => setState(() => _openAt = dt),
-            ),
+                initial: _openAt,
+                onPicked: (dt) => setState(() => _openAt = dt)),
             icon: const Icon(Icons.edit_calendar_rounded,
                 color: AppColors.primary, size: 20),
           ),
         ),
         const Divider(height: 1),
-
-        // Thời gian hết hạn
         _timeRow(
           icon: Icons.lock_clock_outlined,
           label: 'Hết hạn lúc',
           value: _formatDateTime(_closeAt),
           child: IconButton(
             onPressed: () => _pickDateTime(
-              initial: _closeAt,
-              onPicked: (dt) => setState(() => _closeAt = dt),
-            ),
+                initial: _closeAt,
+                onPicked: (dt) => setState(() => _closeAt = dt)),
             icon: const Icon(Icons.edit_calendar_rounded,
                 color: AppColors.primary, size: 20),
           ),
@@ -363,40 +543,40 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
     required String value,
     required Widget child,
   }) =>
-    Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(children: [
-        Icon(icon, size: 18, color: AppColors.primary),
-        const SizedBox(width: 10),
-        Expanded(child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label, style: const TextStyle(fontSize: 12,
-                color: AppColors.textMedium)),
-            const SizedBox(height: 2),
-            Text(value, style: const TextStyle(fontSize: 14,
-                fontWeight: FontWeight.w600, color: AppColors.textDark)),
-          ],
-        )),
-        child,
-      ]),
-    );
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(children: [
+          Icon(icon, size: 18, color: AppColors.primary),
+          const SizedBox(width: 10),
+          Expanded(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(fontSize: 12,
+                  color: AppColors.textMedium)),
+              const SizedBox(height: 2),
+              Text(value, style: const TextStyle(fontSize: 14,
+                  fontWeight: FontWeight.w600, color: AppColors.textDark)),
+            ],
+          )),
+          child,
+        ]),
+      );
 
   Widget _smallBtn(IconData icon, VoidCallback? onTap) =>
-    GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 30, height: 30,
-        decoration: BoxDecoration(
-          color: onTap != null
-              ? AppColors.primaryLight
-              : Colors.grey.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8),
+      GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 30, height: 30,
+          decoration: BoxDecoration(
+            color: onTap != null
+                ? AppColors.primaryLight
+                : Colors.grey.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 16,
+              color: onTap != null ? AppColors.primary : AppColors.textHint),
         ),
-        child: Icon(icon, size: 16,
-            color: onTap != null ? AppColors.primary : AppColors.textHint),
-      ),
-    );
+      );
 
   Future<void> _pickDateTime({
     required DateTime initial,
@@ -409,15 +589,13 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
     if (date == null || !mounted) return;
-
     final time = await showTimePicker(
       context: context,
       initialTime: TimeOfDay.fromDateTime(initial),
     );
     if (time == null) return;
-
-    onPicked(DateTime(date.year, date.month, date.day,
-        time.hour, time.minute));
+    onPicked(DateTime(
+        date.year, date.month, date.day, time.hour, time.minute));
   }
 
   String _formatDateTime(DateTime dt) {
@@ -426,7 +604,6 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
         '${pad(dt.hour)}:${pad(dt.minute)}';
   }
 
-  
   Widget _buildAttemptsCard() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -486,8 +663,11 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
     );
   }
 
-  
   Widget _buildBottomButtons() {
+    final canAssign = !_isAssigning &&
+        !_isLoadingClasses &&
+        _selectedIds.isNotEmpty;
+
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
       decoration: BoxDecoration(
@@ -495,15 +675,10 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
         border: Border(top: BorderSide(color: AppColors.border)),
       ),
       child: Row(children: [
-
-        // Nút huỷ → về kho đề
         Expanded(
           flex: 2,
           child: OutlinedButton(
-            onPressed: _isAssigning
-                ? null
-                : () => Navigator.of(context)
-                    .popUntil((route) => route.isFirst),
+            onPressed: _isAssigning ? null : () => Navigator.pop(context),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.textMedium,
               side: const BorderSide(color: AppColors.border),
@@ -511,19 +686,15 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
                   borderRadius: BorderRadius.circular(28)),
               padding: const EdgeInsets.symmetric(vertical: 16),
             ),
-            child: const Text('Huỷ', style: TextStyle(
-                fontSize: 15, fontWeight: FontWeight.w600)),
+            child: const Text('Huỷ',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
           ),
         ),
         const SizedBox(width: 12),
-
-        // Nút giao đề
         Expanded(
           flex: 3,
           child: ElevatedButton(
-            onPressed: (_isAssigning || _selectedClassId == null)
-                ? null
-                : _handleAssign,
+            onPressed: canAssign ? _handleAssign : null,
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
               foregroundColor: AppColors.white,
@@ -534,16 +705,22 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
               elevation: 4,
             ),
             child: _isAssigning
-                ? const SizedBox(width: 20, height: 20,
+                ? const SizedBox(
+                    width: 20, height: 20,
                     child: CircularProgressIndicator(
                         color: AppColors.white, strokeWidth: 2.5))
-                : const Row(
+                : Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.send_rounded, size: 18),
-                      SizedBox(width: 8),
-                      Text('Giao đề', style: TextStyle(
-                          fontSize: 15, fontWeight: FontWeight.bold)),
+                      const Icon(Icons.send_rounded, size: 18),
+                      const SizedBox(width: 8),
+                      Text(
+                        _selectedIds.isEmpty
+                            ? 'Giao đề'
+                            : 'Giao cho ${_selectedIds.length} lớp',
+                        style: const TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.bold),
+                      ),
                     ]),
           ),
         ),

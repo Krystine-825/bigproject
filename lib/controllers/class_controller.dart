@@ -75,7 +75,20 @@ Stream<List<ClassModel>> streamMyClasses() {
           'classes', field: 'teacher_id', isEqualTo: _myUid);
       final examCount = await fireStoreService.countWhere(
           'exams', field: 'teacher_id', isEqualTo: _myUid);
-      return {'classes': classCount, 'students': 0, 'exams': examCount};
+
+      // Đọc student_count đã cache sẵn trong mỗi document lớp
+      // → chỉ 1 query thay vì N query như trước
+      final classSnap = await fireStoreService.queryWhere(
+        'classes',
+        field: 'teacher_id',
+        isEqualTo: _myUid,
+      );
+      final studentCount = classSnap.docs.fold<int>(
+        0,
+        (sum, d) => sum + ((d.data()['student_count'] as num?)?.toInt() ?? 0),
+      );
+
+      return {'classes': classCount, 'students': studentCount, 'exams': examCount};
     } catch (_) {
       return {'classes': 0, 'students': 0, 'exams': 0};
     }
@@ -121,12 +134,24 @@ Stream<List<ClassModel>> streamMyClasses() {
  
  
 
-   Future<void> kickMember(String memberId) async {
+  Future<void> kickMember(String memberId) async {
+    // Lấy classId từ member document trước khi update
+    final memberDoc = await fireStoreService.getDocument('class_members', memberId);
+    final classId = memberDoc.data()?['class_id'] as String?;
+
     await fireStoreService.updateDocument(
       'class_members',
       memberId,
       {'status': 'kicked'},
     );
+
+    // Giảm student_count trong document lớp
+    if (classId != null) {
+      await fireStoreService.incrementField(
+        'classes', classId,
+        field: 'student_count', delta: -1,
+      );
+    }
   }
 
   Future<ClassModel> joinClass({
@@ -169,16 +194,20 @@ Stream<List<ClassModel>> streamMyClasses() {
    });
    if(existingMember) throw Exception('Bạn đã là thành viên của lớp này');
 
-    if (memberSnap.docs.isEmpty) {
-      // Thêm thành viên mới
-      final newMember = ClassMemberModel(
-        id: '',
-        classId: classDoc.id,
-        studentId: studentId,
-        status: 'active',
-      );
-      await fireStoreService.addDocument('class_members', newMember.toJson());
-    }
+    // Thêm thành viên mới (kể cả đã từng bị kick trước đó)
+    final newMember = ClassMemberModel(
+      id: '',
+      classId: classDoc.id,
+      studentId: studentId,
+      status: 'active',
+    );
+    await fireStoreService.addDocument('class_members', newMember.toJson());
+
+    // Tăng student_count trong document lớp
+    await fireStoreService.incrementField(
+      'classes', classDoc.id,
+      field: 'student_count', delta: 1,
+    );
  
     return classData;
   }

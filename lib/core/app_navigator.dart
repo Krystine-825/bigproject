@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../screens/teacher/dashboard_screen.dart';
 import '../../screens/teacher/class_list_screen.dart';
 import '../../screens/teacher/create_exam_screen.dart';
+import '../../screens/teacher/exam_bank_screen.dart';
 
 class AppNavigator {
   static void handleBottomNavTap(BuildContext context, int index) {
@@ -20,6 +21,7 @@ class AppNavigator {
         break;
 
       case 3: // Kho đề
+      _goToExamBank(context);
         break;
 
       case 4: // Cá nhân
@@ -66,5 +68,21 @@ class AppNavigator {
         ),
       );
     }
+  }
+
+  static void _goToExamBank(BuildContext context) {
+    final currentRoute = ModalRoute.of(context)?.settings.name;
+
+    if (currentRoute != '/exam-bank') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const ExamBankScreen(),
+          settings: const RouteSettings(name: '/exam-bank'),
+        ),
+      );
+    }
 }
+
+
 }

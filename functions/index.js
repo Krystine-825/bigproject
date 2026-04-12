@@ -142,9 +142,32 @@ exports.generateExamFromPdf = onCall(
 );
 
 
+<<<<<<< HEAD
 // ════════════════════════════════════════════════════════════════════════════════
 // Helper: Làm sạch text
 // ════════════════════════════════════════════════════════════════════════════════
+=======
+
+async function _extractTextFromStorage(storagePath) {
+  const bucket = storage.bucket();
+  const file   = bucket.file(storagePath);
+  const [buffer] = await file.download();
+
+  const parsed = await pdfParse(buffer);
+  const text   = parsed.text;
+
+  if (!text || text.trim().length < 100) {
+    throw new HttpsError(
+      'invalid-argument',
+      'PDF không đọc được text. Có thể là file scan ảnh.'
+    );
+  }
+  return text;
+}
+
+
+
+>>>>>>> fbbb185266d5a68084278b3b8f8327bb1bbbae36
 function _cleanText(raw) {
   return raw
     .replace(/\r\n/g, '\n')         // chuẩn hoá xuống dòng
@@ -156,9 +179,6 @@ function _cleanText(raw) {
 }
 
 
-// ════════════════════════════════════════════════════════════════════════════════
-// Helper: Validate nội dung phía backend (double-check sau khi làm sạch)
-// ════════════════════════════════════════════════════════════════════════════════
 function _validateContent(text) {
   // Loại bỏ khoảng trắng và xuống dòng để tính tỷ lệ chính xác (Chỉ đếm chữ và số)
   const cleanText = text.replace(/\s+/g, '');
@@ -247,6 +267,7 @@ async function _callOpenAI(text, config) {
 
   //check do dài token
   const charCount = raw.length;
+<<<<<<< HEAD
   logger.info(`[THỐNG KÊ AI] Số ký tự AI sinh ra (Output length): ${charCount} ký tự.`);
 
   if (response.usage) {
@@ -257,6 +278,18 @@ async function _callOpenAI(text, config) {
     logger.info(`[THỐNG KÊ TOKEN] Đầu vào: ${promptTokens} | Đầu ra: ${completionTokens} | Tổng cộng: ${totalTokens}`);
   }
 
+=======
+  console.log(`[THỐNG KÊ AI] Số ký tự AI sinh ra (Output length): ${charCount} ký tự.`);
+
+  if (response.usage) {
+    const promptTokens = response.usage.prompt_tokens;       // Token đầu vào (Text PDF + Lệnh)
+    const completionTokens = response.usage.completion_tokens; // Token đầu ra (Bộ đề JSON)
+    const totalTokens = response.usage.total_tokens;         // Tổng Token (Quyết định chi phí)
+    
+    console.log(`[THỐNG KÊ TOKEN] Đầu vào: ${promptTokens} | Đầu ra: ${completionTokens} | Tổng cộng: ${totalTokens}`);
+  }
+ 
+>>>>>>> fbbb185266d5a68084278b3b8f8327bb1bbbae36
   const parsed = JSON.parse(raw);
 
   if (!parsed.questions || !Array.isArray(parsed.questions)) {

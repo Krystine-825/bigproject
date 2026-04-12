@@ -7,19 +7,22 @@ import '../data/services/storage_service.dart';
 import 'dart:convert';
 
 class ExamController {
-  final  functions = FirebaseFunctions.instance;
-  final  firestore = FireStoreService();
-  final  auth      = AuthService();
-  final  storage   = StorageService(); 
+  final functions = FirebaseFunctions.instance;
+  final firestore = FireStoreService();
+  final auth = AuthService();
+  final storage = StorageService();
 
- //sinh đề
   Future<ExamModel> generateExam({
+<<<<<<< HEAD
     required String classId, //nó báo thiếu tham sô bắt buộc là do cái này
+=======
+    required String classId,
+>>>>>>> fbbb185266d5a68084278b3b8f8327bb1bbbae36
     required String examName,
-    required File   pdfFile,
+    required File pdfFile,
     required String extractedText,
     required String fileName,
-    required int    questionCount,
+    required int questionCount,
     required String difficulty,
   }) async {
     final teacherId = auth.currentUid;
@@ -29,11 +32,10 @@ class ExamController {
 
     final callable = functions.httpsCallable(
       'generateExamFromPdf',
-      options: HttpsCallableOptions(
-        timeout: const Duration(minutes: 3), 
-      ),
+      options: HttpsCallableOptions(timeout: const Duration(minutes: 3)),
     );
 
+<<<<<<< HEAD
     //ClassId & bỏ <Map<String, dynamic>> 
     final result = await callable.call({
       'classId':       classId,
@@ -42,16 +44,29 @@ class ExamController {
       'storagePath':   uploaded.storagePath,
       'extractedText': extractedText,
       'fileName':      fileName,
+=======
+    final result = await callable.call({
+      'classId': classId,
+      'teacherId': teacherId,
+      'pdfUrl': uploaded.downloadUrl,
+      'storagePath': uploaded.storagePath,
+      'extractedText': extractedText,
+      'fileName': fileName,
+>>>>>>> fbbb185266d5a68084278b3b8f8327bb1bbbae36
       'config': {
         'questionCount': questionCount,
-        'difficulty':    difficulty,
+        'difficulty': difficulty,
         'questionTypes': ['multiple_choice', 'fill_in', 'true_false'],
       },
     });
 
+<<<<<<< HEAD
     
     final String jsonString = jsonEncode(result.data);
     
+=======
+    final String jsonString = jsonEncode(result.data);
+>>>>>>> fbbb185266d5a68084278b3b8f8327bb1bbbae36
     final Map<String, dynamic> data = jsonDecode(jsonString);
 
     if (data['success'] != true) {
@@ -59,45 +74,117 @@ class ExamController {
     }
 
     final examJson = data['exam'] as Map<String, dynamic>;
-    final examId   = (examJson['exam_id'] ?? examJson['id'] ?? '') as String;
+    final examId = (examJson['exam_id'] ?? examJson['id'] ?? '') as String;
+
     if (examId.isEmpty) throw Exception('Không nhận được ID đề từ server');
 
     return ExamModel.fromJson(examJson, id: examId);
   }
 
- //lưu đề
+  //lưu đề vào firestore
   Future<void> saveExam(ExamModel exam) async {
     await firestore.setDocument('exams', exam.id, exam.toJson());
   }
 
-  //  Giao đề cho lớp 
+  // giao dề thi
   Future<void> assignExam({
-    required String   examId,
-    required String   classId,
-    required int      durationMinutes,
+    required String examId,
+    required String classId,
+    required String className,
+    required int durationMinutes,
     required DateTime openAt,
     required DateTime closeAt,
-    required int      maxAttempts,
+    required int maxAttempts,
   }) async {
+    final doc = await firestore.getDocument('exams', examId);
+    final data = doc.data() ?? {};
+
+    final existing = (data['assignments'] as List<dynamic>? ?? [])
+        .map((a) => ExamAssignment.fromJson(a as Map<String, dynamic>))
+        .toList();
+
+    final alreadyAssigned = existing.any((a) => a.classId == classId);
+    if (alreadyAssigned) {
+      throw Exception('Đề đã được giao cho lớp này rồi');
+    }
+
+    final newAssignment = ExamAssignment(
+      classId: classId,
+      className: className,
+      durationMinutes: durationMinutes,
+      openAt: openAt,
+      closeAt: closeAt,
+      maxAttempts: maxAttempts,
+      assignedAt: DateTime.now().toIso8601String(),
+    );
+
+    final updated = [...existing, newAssignment];
+    final classIds = updated.map((a) => a.classId).toList();
+
     await firestore.updateDocument('exams', examId, {
-      'status':           'assigned',
-      'class_id':         classId,
-      'duration_minutes': durationMinutes,
-      'open_at':          openAt.toIso8601String(),
-      'close_at':         closeAt.toIso8601String(),
-     // 'max_attempts':     maxAttempts,
-      'assigned_at':      DateTime.now().toIso8601String(),
+      'status': 'assigned',
+      'class_id': classId,
+      'assignments': updated.map((a) => a.toJson()).toList(),
+      'assigned_at': DateTime.now().toIso8601String(),
+      'assigned_class_ids': classIds,
     });
   }
 
-  // Lấy danh sách lớp của giáo viên để giao đề
+  // Lấy danh sách lớp để giao đề 
   Future<List<Map<String, String>>> getMyClasses() async {
     final teacherId = auth.currentUid ?? '';
     final snap = await firestore.queryWhere(
-        'classes', field: 'teacher_id', isEqualTo: teacherId);
+      'classes',
+      field: 'teacher_id',
+      isEqualTo: teacherId,
+    );
+
     return snap.docs
-        .map((d) => {'id': d.id, 'name': (d.data()['name'] ?? '') as String})
+        .map((d) => {
+              'id': d.id,
+              'name': (d.data()['name'] ?? '') as String,
+            })
         .toList();
+  }
+
+  //  Stream đề thi của giáo viên
+  Stream<List<ExamModel>> streamMyExams() {
+    final teacherId = auth.currentUid ?? '';
+    if (teacherId.isEmpty) return Stream.value([]);
+
+    return firestore
+        .streamWhere('exams', field: 'teacher_id', isEqualTo: teacherId)
+        .map((snap) => snap.docs
+            .map((doc) => ExamModel.fromJson(doc.data(), id: doc.id))
+            .toList());
+  }
+
+  // Stream đề thi đã giao cho học sinh
+  Stream<List<ExamModel>> streamAssignedExamsForStudent(String classId) {
+    final studentId = auth.currentUid ?? '';
+    if (studentId.isEmpty || classId.isEmpty) return Stream.value([]);
+
+    return firestore
+        .streamArrayContains(
+          'exams',
+          field: 'assigned_class_ids',
+          value: classId,
+        )
+        .map((snap) {
+          return snap.docs
+              .map((doc) => ExamModel.fromJson(doc.data(), id: doc.id))
+              .where((exam) => exam.assignments.any((a) => a.classId == classId))
+              .toList()
+            ..sort((a, b) {
+              final closeA = a.assignments
+                  .firstWhere((ass) => ass.classId == classId)
+                  .closeAt;
+              final closeB = b.assignments
+                  .firstWhere((ass) => ass.classId == classId)
+                  .closeAt;
+              return closeA.compareTo(closeB);
+            });
+        });
   }
 
   // Xoá đề 
