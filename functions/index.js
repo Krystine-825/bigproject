@@ -21,7 +21,9 @@ const logger = require("firebase-functions/logger");
 // functions should each use functions.runWith({ maxInstances: 10 }) instead.
 // In the v1 API, each function can only serve one request per container, so
 // this will be the maximum concurrent request count.
-setGlobalOptions({ maxInstances: 10 });
+
+setGlobalOptions({ maxInstances: 100 });
+// chỗ này quyết định được bao nhiêu người xài chức năng sinh đề, có thẻ xóa luôn dòng này để Firebase tự scale 
 
 // Create and deploy your first functions
 // https://firebase.google.com/docs/functions/get-started
@@ -52,12 +54,12 @@ exports.generateExamFromPdf = onCall(
   { timeoutSeconds: 300, memory: '512MiB' },
   async (request) => {
     const {
-      classId, teacherId, pdfUrl,
+      teacherId, pdfUrl,
       storagePath, extractedText, fileName, config,
     } = request.data;
 
     // ── Validate input ─────────────────────────────────────────────────────────
-    if (!classId || !teacherId || !storagePath) {
+    if (!teacherId || !storagePath) {
       throw new HttpsError('invalid-argument', 'Thiếu tham số bắt buộc');
     }
 
@@ -108,8 +110,7 @@ exports.generateExamFromPdf = onCall(
       // ── Bước 5: Lưu vào Firestore ────────────────────────────────────────────
       const examData = {
         title:           _generateTitle(fileName),
-        class_id:        classId,
-        teacher_id:      teacherId,
+        teacher_id:      teacherId, 
         source_pdf_name: fileName,
         storage_path:    storagePath,
         questions:       questions,
@@ -142,11 +143,6 @@ exports.generateExamFromPdf = onCall(
 );
 
 
-<<<<<<< HEAD
-// ════════════════════════════════════════════════════════════════════════════════
-// Helper: Làm sạch text
-// ════════════════════════════════════════════════════════════════════════════════
-=======
 
 async function _extractTextFromStorage(storagePath) {
   const bucket = storage.bucket();
@@ -162,12 +158,15 @@ async function _extractTextFromStorage(storagePath) {
       'PDF không đọc được text. Có thể là file scan ảnh.'
     );
   }
-  return text;
+
+  const MAX_CHARS = 15000; // Khoảng 5-7 trang A4
+  if (text.length > MAX_CHARS) {
+    throw new HttpsError('out-of-range', `File quá dài (${text.length} ký tự). Vui lòng tách nhỏ PDF và tải lên dưới ${MAX_CHARS} ký tự để AI xử lý tốt nhất.`);
+  }
+
+  return text; 
 }
 
-
-
->>>>>>> fbbb185266d5a68084278b3b8f8327bb1bbbae36
 function _cleanText(raw) {
   return raw
     .replace(/\r\n/g, '\n')         // chuẩn hoá xuống dòng
@@ -178,7 +177,7 @@ function _cleanText(raw) {
     .trim();
 }
 
-
+/*
 function _validateContent(text) {
   // Loại bỏ khoảng trắng và xuống dòng để tính tỷ lệ chính xác (Chỉ đếm chữ và số)
   const cleanText = text.replace(/\s+/g, '');
@@ -226,19 +225,44 @@ function _validateContent(text) {
 
   return { valid: true };
 }
+*/
+function _validateContent(text) {
+  // Loại bỏ khoảng trắng và xuống dòng để đếm ký tự
+  const cleanText = text.replace(/\s+/g, '');
+  const totalChars = cleanText.length;
+
+  if (totalChars < 50) { 
+    return { valid: false, reason: 'Nội dung PDF quá ngắn sau khi xử lý (dưới 50 ký tự).' };
+  }
+
+  // Chỉ giữ lại chốt chặn Tiếng Việt (chặn file có > 5% tiếng Việt)
+  const viPattern = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/gi;
+  const viCount   = (cleanText.match(viPattern) || []).length;
+  const viRatio   = viCount / totalChars;
+  
+  if (viRatio > 0.05) { 
+    return {
+      valid: false,
+      reason: `File chứa tiếng Việt (${(viRatio * 100).toFixed(1)}%). Vui lòng dùng tài liệu tiếng Anh.`,
+    };
+  }
+
+  // Đã bỏ qua kiểm tra engPattern (tỉ lệ tiếng Anh) vì đề thi thường có nhiều dấu ____ và ngoặc vuông []
+
+  return { valid: true };
+}
 
 
 async function _callOpenAI(text, config) {
   const {
     questionCount = 10,
-    easyRatio     = 0.4,
-    mediumRatio   = 0.4,
-    hardRatio     = 0.2,
     questionTypes = ['multiple_choice', 'fill_in', 'true_false'],
   } = config;
 
-  const easyCount   = Math.round(questionCount * easyRatio);
-  const mediumCount = Math.round(questionCount * mediumRatio);
+  // CỐ ĐỊNH TỈ LỆ ĐỘ KHÓ (1 Đề có 3 phần: 40% Dễ, 40% TB, 20% Khó)
+  // Bạn có thể tùy chỉnh lại các con số 0.4 và 0.2 này nếu muốn
+  const easyCount   = Math.round(questionCount * 0.4);
+  const mediumCount = Math.round(questionCount * 0.4);
   const hardCount   = questionCount - easyCount - mediumCount;
 
   // Cắt text nếu quá dài (GPT-4o context limit)
@@ -265,53 +289,46 @@ async function _callOpenAI(text, config) {
 
   const raw  = response.choices[0].message.content;
 
-  //check do dài token
+  // Thống kê Token
   const charCount = raw.length;
-<<<<<<< HEAD
-  logger.info(`[THỐNG KÊ AI] Số ký tự AI sinh ra (Output length): ${charCount} ký tự.`);
+  logger.info(`[THỐNG KÊ AI] Số ký tự AI sinh ra: ${charCount} ký tự.`);
 
   if (response.usage) {
-    const promptTokens = response.usage.prompt_tokens;       
+    const promptTokens = response.usage.prompt_tokens;      
     const completionTokens = response.usage.completion_tokens;
-    const totalTokens = response.usage.total_tokens;         
-    
+    const totalTokens = response.usage.total_tokens;        
     logger.info(`[THỐNG KÊ TOKEN] Đầu vào: ${promptTokens} | Đầu ra: ${completionTokens} | Tổng cộng: ${totalTokens}`);
   }
-
-=======
-  console.log(`[THỐNG KÊ AI] Số ký tự AI sinh ra (Output length): ${charCount} ký tự.`);
-
-  if (response.usage) {
-    const promptTokens = response.usage.prompt_tokens;       // Token đầu vào (Text PDF + Lệnh)
-    const completionTokens = response.usage.completion_tokens; // Token đầu ra (Bộ đề JSON)
-    const totalTokens = response.usage.total_tokens;         // Tổng Token (Quyết định chi phí)
-    
-    console.log(`[THỐNG KÊ TOKEN] Đầu vào: ${promptTokens} | Đầu ra: ${completionTokens} | Tổng cộng: ${totalTokens}`);
-  }
  
->>>>>>> fbbb185266d5a68084278b3b8f8327bb1bbbae36
   const parsed = JSON.parse(raw);
 
   if (!parsed.questions || !Array.isArray(parsed.questions)) {
     throw new Error('OpenAI trả về dữ liệu không đúng định dạng');
   }
 
-  // Đánh số id từ 1
-  return parsed.questions.map((q, i) => ({ ...q, id: i + 1 }));
+  // THUẬT TOÁN MỚI: Sắp xếp câu hỏi từ Dễ -> Trung Bình -> Khó để tạo 3 phần rõ rệt
+  const diffOrder = { 'easy': 1, 'medium': 2, 'hard': 3 };
+  const sortedQuestions = parsed.questions.sort((a, b) => diffOrder[a.difficulty] - diffOrder[b.difficulty]);
+
+  // Đánh số id từ 1 sau khi đã sắp xếp
+  return sortedQuestions.map((q, i) => ({ ...q, id: i + 1 }));
 }
-
-
 
 // ─── Prompt hệ thống ──────────────────────────────────────────────────────────
 function _buildSystemPrompt(typeInstructions) {
   return `You are an expert English language teacher creating exam questions from provided text.
 
 STRICT RULES:
-- Generate questions ONLY based on the provided text content
-- All questions must test English language skills: grammar, vocabulary, comprehension, usage
-- Do NOT create math, science, or formula-based questions
-- Do NOT translate or use Vietnamese in any part of the output
-- Every question must be answerable from the provided text
+- Generate questions ONLY based on the provided text content.
+- All questions must test English language skills: grammar, vocabulary, comprehension, usage.
+- Do NOT create math, science, or formula-based questions.
+- Do NOT translate or use Vietnamese in any part of the output.
+- Every question must be answerable directly from the provided text.
+
+DIFFICULTY GUIDELINES:
+- Easy: Basic factual recall and direct vocabulary identification from the text.
+- Medium: Understanding main ideas, simple inferences, and grammar application.
+- Hard: Complex inferences, analyzing author's tone, or deducing the meaning of advanced vocabulary from context.
 
 OUTPUT: Return a valid JSON object with this exact structure:
 {
@@ -320,9 +337,9 @@ OUTPUT: Return a valid JSON object with this exact structure:
       "type": "multiple_choice" | "fill_in" | "true_false",
       "difficulty": "easy" | "medium" | "hard",
       "question": "string",
-      "options": ["A. ...", "B. ...", "C. ...", "D. ..."],  // only for multiple_choice
-      "answer": "string",  // for MC: "A", "B", "C", or "D". For fill_in: the word/phrase. For T/F: "True" or "False"
-      "explanation": "Brief explanation in English (1-2 sentences)"
+      "options": ["A. ...", "B. ...", "C. ...", "D. ..."],  // For multiple_choice ONLY. MUST include "A.", "B.", "C.", "D." prefixes.
+      "answer": "string",  // For MC: strictly "A", "B", "C", or "D". For fill_in: the exact word/phrase. For T/F: "True" or "False".
+      "explanation": "Brief explanation in English detailing why this answer is correct based on the text (1-2 sentences)."
     }
   ]
 }
@@ -370,21 +387,19 @@ function _buildUserPrompt(text, easyCount, mediumCount, hardCount, types) {
     true_false:      'true_false',
   }[t])).join(', ');
 
-  return `Create English exam questions from the following text.
+  return `Create English exam questions based strictly on the text provided below.
 
-REQUIRED DISTRIBUTION:
-- Easy questions: ${easyCount}
-- Medium questions: ${mediumCount}
-- Hard questions: ${hardCount}
-- Question types to use: ${typesLabel}
-- Spread the types as evenly as possible across difficulty levels
+TASK REQUIREMENTS:
+1. Difficulty Quotas: You MUST generate EXACTLY ${easyCount} Easy, ${mediumCount} Medium, and ${hardCount} Hard questions.
+2. Permitted Types: Use ONLY these formats: ${typesLabel}.
+3. Variety: Ensure a mix of permitted types within each difficulty level, but meeting the exact Difficulty Quotas is your highest priority.
 
 TEXT TO USE:
 """
 ${text}
 """
 
-Generate exactly ${easyCount + mediumCount + hardCount} questions total. Return JSON only.`;
+CRITICAL INSTRUCTION: Your final JSON array MUST contain EXACTLY ${easyCount + mediumCount + hardCount} items. Do not stop until you reach this exact number. Return JSON only.`;
 }
 
 

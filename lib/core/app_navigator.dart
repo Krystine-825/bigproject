@@ -5,6 +5,7 @@ import '../../screens/teacher/class_list_screen.dart';
 import '../../screens/teacher/create_exam_screen.dart';
 import '../../screens/teacher/exam_bank_screen.dart';
 
+
 class AppNavigator {
   static void handleBottomNavTap(BuildContext context, int index) {
     switch (index) {

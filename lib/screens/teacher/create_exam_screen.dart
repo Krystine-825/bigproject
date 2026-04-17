@@ -8,7 +8,6 @@ import '../../controllers/exam_controller.dart';
 import '../../widgets/common/custom_button_nav.dart';
 import 'exam_preview_screen.dart';
 
-
 class CreateExamScreen extends StatefulWidget {
   const CreateExamScreen({super.key});
 
@@ -20,50 +19,15 @@ class _CreateExamScreenState extends State<CreateExamScreen> {
   final examNameController = TextEditingController();
   final examController     = ExamController();
 
-  
   File?   _pickedFile;
   String? _fileName;
   int?    _fileSizeBytes;
   String? _extractedText;
   bool    _isExtracting = false;
   bool    _fileIsValid  = false;
-  
 
- 
-  int    _questionCount = 10; 
-  String _difficulty    = 'medium'; 
-
-  bool _isGenerating = false;
-
-  List<Map<String, String>> _classes = [];
-  String? _selectedClassId;
-  bool _isLoadingClasses = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadClasses();
-  }
-
-  Future<void> _loadClasses() async {
-    try {
-      final classes = await examController.getMyClasses();
-      if (mounted) {
-        setState(() {
-          _classes = classes;
-          _isLoadingClasses = false;
-          // Tự động chọn lớp đầu tiên nếu có danh sách
-          if (_classes.isNotEmpty) {
-            _selectedClassId = _classes.first['id'];
-          }
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoadingClasses = false);
-      }
-    }
-  }
+  int     _questionCount = 10; 
+  bool    _isGenerating  = false;
 
   @override
   void dispose() {
@@ -71,8 +35,6 @@ class _CreateExamScreenState extends State<CreateExamScreen> {
     super.dispose();
   }
 
-  
-  // kiểm tra file hợp lệ
   Future<void> _pickFile() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -84,8 +46,8 @@ class _CreateExamScreenState extends State<CreateExamScreen> {
     if (picked.path == null) return;
 
     setState(() {
-      _isExtracting = true;
-      _fileIsValid  = false;
+      _isExtracting  = true;
+      _fileIsValid   = false;
       _extractedText = null;
       _pickedFile    = File(picked.path!);
       _fileName      = picked.name;
@@ -178,20 +140,8 @@ class _CreateExamScreenState extends State<CreateExamScreen> {
     );
   }
 
-  //sinh đề
   Future<void> _handleGenerate() async {
     final name = examNameController.text.trim();
-
-  
-    if (_selectedClassId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng chọn lớp học trước khi tạo đề'),
-          backgroundColor: AppColors.error,
-        ),
-      );
-      return;
-    }
 
     if (name.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -216,62 +166,39 @@ class _CreateExamScreenState extends State<CreateExamScreen> {
     setState(() => _isGenerating = true);
 
     try {
-      
       final exam = await examController.generateExam(
-        classId: _selectedClassId!, // 
         examName: name,
         pdfFile: _pickedFile!,         
         extractedText: _extractedText!,
         fileName: _fileName!,
         questionCount: _questionCount,
-        difficulty: _difficulty,
       );
-<<<<<<< HEAD
-=======
+      
       final finalExam = exam.copyWith(name: name);
->>>>>>> fbbb185266d5a68084278b3b8f8327bb1bbbae36
 
       if (!mounted) return;
 
       Navigator.push(
         context,
         MaterialPageRoute(
-<<<<<<< HEAD
-          builder: (_) => ExamPreviewScreen(exam: exam),
-=======
           builder: (_) => ExamPreviewScreen(exam: finalExam),
->>>>>>> fbbb185266d5a68084278b3b8f8327bb1bbbae36
         ),
       );
 
     } catch (e) {
       if (!mounted) return;
 
-<<<<<<< HEAD
-      //Lấy thông báo lỗi đã được phiên dịch
       final errorMessage = _getFriendlyErrorMessage(e);
-      
-      //Nếu là lỗi hết Quota thì hiện màu cam cảnh báo, lỗi khác thì hiện màu đỏ
       final isQuotaError = errorMessage.contains('hết lượt');
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(errorMessage),
           backgroundColor: isQuotaError ? Colors.orange.shade700 : AppColors.error,
-          duration: const Duration(seconds: 5), // Hiện lâu hơn một chút để GV đọc
+          duration: const Duration(seconds: 5),
           behavior: SnackBarBehavior.floating,
         ),
       );
-      
-      debugPrint('Chi tiết lỗi sinh đề: $e');
-=======
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.toString().replaceFirst('Exception: ', '')),
-          backgroundColor: AppColors.error,
-        ),
-      );
->>>>>>> fbbb185266d5a68084278b3b8f8327bb1bbbae36
     } finally {
       if (mounted) setState(() => _isGenerating = false);
     }
@@ -280,7 +207,6 @@ class _CreateExamScreenState extends State<CreateExamScreen> {
   bool get _canGenerate =>
       _fileIsValid && !_isExtracting && !_isGenerating;
 
- 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -310,7 +236,6 @@ class _CreateExamScreenState extends State<CreateExamScreen> {
     );
   }
 
-  
   Widget _buildHeader() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
@@ -330,7 +255,6 @@ class _CreateExamScreenState extends State<CreateExamScreen> {
       ]),
     );
   }
-
 
   Widget _buildSourceSection() {
     return Column(
@@ -429,7 +353,6 @@ class _CreateExamScreenState extends State<CreateExamScreen> {
     );
   }
 
- 
   Widget _buildConfigSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -439,13 +362,6 @@ class _CreateExamScreenState extends State<CreateExamScreen> {
                 color: AppColors.textDark)),
         const SizedBox(height: 16),
         _configCard(children: [
-          
-          //chọn lớp
-          _fieldRow(
-            label: 'Chọn lớp học',
-            child: _buildClassDropdown(),
-          ),
-          const Divider(height: 1),
 
           // Tên đề
           _fieldRow(
@@ -470,9 +386,9 @@ class _CreateExamScreenState extends State<CreateExamScreen> {
           ),
           const Divider(height: 1),
 
-          // Số câu — giới hạn 10–30
+          // Số câu
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -498,7 +414,6 @@ class _CreateExamScreenState extends State<CreateExamScreen> {
                           : null),
                 ]),
                 const SizedBox(height: 6),
-                // Slider 10–30
                 SliderTheme(
                   data: SliderTheme.of(context).copyWith(
                     activeTrackColor: AppColors.primary,
@@ -529,28 +444,6 @@ class _CreateExamScreenState extends State<CreateExamScreen> {
                         color: AppColors.textHint)),
                   ],
                 ),
-              ],
-            ),
-          ),
-          const Divider(height: 1),
-
-          // Cấp độ
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Cấp độ',
-                    style: TextStyle(fontSize: 14,
-                        color: AppColors.textDark)),
-                const SizedBox(height: 10),
-                Row(children: [
-                  _diffBtn('Dễ', 'easy', Colors.green),
-                  const SizedBox(width: 10),
-                  _diffBtn('Trung bình', 'medium', Colors.orange),
-                  const SizedBox(width: 10),
-                  _diffBtn('Khó', 'hard', Colors.red),
-                ]),
               ],
             ),
           ),
@@ -599,33 +492,10 @@ class _CreateExamScreenState extends State<CreateExamScreen> {
       ),
     );
 
-  Widget _diffBtn(String label, String value, Color color) {
-    final on = _difficulty == value;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => _difficulty = value),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: on ? color.withOpacity(0.12) : const Color(0xFFF5F7F8),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-                color: on ? color : Colors.transparent, width: 1.5),
-          ),
-          child: Center(child: Text(label,
-              style: TextStyle(fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: on ? color : AppColors.textMedium))),
-        ),
-      ),
-    );
-  }
-
- 
   Widget _buildGenerateButton() {
     return Container(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: AppColors.white,
         border: Border(top: BorderSide(color: AppColors.border)),
       ),
@@ -665,66 +535,19 @@ class _CreateExamScreenState extends State<CreateExamScreen> {
       ),
     );
   }
-  
-  Widget _buildClassDropdown() {
-    if (_isLoadingClasses) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 8.0),
-        child: SizedBox(
-          height: 20, width: 20, 
-          child: CircularProgressIndicator(strokeWidth: 2),
-        ),
-      );
-    }
 
-    if (_classes.isEmpty) {
-      return const Text(
-        'Chưa có lớp học nào. Vui lòng tạo lớp trước!', 
-        style: TextStyle(color: AppColors.error, fontSize: 13, fontStyle: FontStyle.italic)
-      );
-    }
-
-    return DropdownButtonFormField<String>(
-      value: _selectedClassId,
-      decoration: InputDecoration(
-        border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: BorderSide.none),
-        filled: true,
-        fillColor: const Color(0xFFF5F7F8),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        isDense: true,
-      ),
-      icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.textMedium),
-      dropdownColor: AppColors.white,
-      items: _classes.map((c) {
-        return DropdownMenuItem<String>(
-          value: c['id'],
-          child: Text(c['name'] ?? '', style: const TextStyle(fontSize: 14, color: AppColors.textDark)),
-        );
-      }).toList(),
-      onChanged: (val) {
-        setState(() {
-          _selectedClassId = val;
-        });
-      },
-    );
-  }
-
-<<<<<<< HEAD
-  // Hàm phiên dịch lỗi kỹ thuật sang tiếng Việt thân thiện
   String _getFriendlyErrorMessage(dynamic error) {
     final errorString = error.toString().toLowerCase();
 
-    // 1. Đón lỗi Hết Quota 2 đề/ngày từ Backend
     if (errorString.contains('resource-exhausted')) {
       return 'Bạn đã sử dụng hết lượt tạo đề bằng AI hôm nay. Vui lòng quay lại vào ngày mai nhé!';
     }
     
-    // 2. Các lỗi do file PDF hoặc mạng
+    // ĐÃ SỬA: Hiển thị chính xác thông báo lỗi từ Backend gửi về
     if (errorString.contains('invalid-argument')) {
-      return 'Dữ liệu không hợp lệ. Hãy đảm bảo file PDF rõ chữ và có nội dung tiếng Anh.';
+      return error.toString().replaceAll(RegExp(r'\[.*?\] '), ''); // Xóa cụm [firebase_functions/...] cho đẹp
     }
+
     if (errorString.contains('network') || errorString.contains('socket')) {
       return 'Lỗi kết nối mạng. Vui lòng kiểm tra lại Wifi/4G.';
     }
@@ -732,16 +555,10 @@ class _CreateExamScreenState extends State<CreateExamScreen> {
       return 'Hệ thống AI đang quá tải, quá trình sinh đề mất nhiều thời gian hơn dự kiến. Vui lòng thử lại.';
     }
     
-    // 3. Lỗi thông thường (từ file validator)
     if (error.toString().startsWith('Exception: ')) {
       return error.toString().replaceFirst('Exception: ', '');
     }
 
     return 'Đã xảy ra lỗi khi kết nối với AI. Vui lòng thử lại sau.';
   }
-
-
-
-=======
->>>>>>> fbbb185266d5a68084278b3b8f8327bb1bbbae36
 }

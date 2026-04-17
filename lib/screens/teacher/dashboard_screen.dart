@@ -3,16 +3,11 @@ import '../../core/app_colors.dart';
 import 'class_list_screen.dart';
 import 'class_detail_screen.dart';
 import '../../widgets/common/custom_button_nav.dart';
-<<<<<<< HEAD
-=======
 import '../../controllers/auth_controller.dart';
 import '../../controllers/class_controller.dart';
 import '../../controllers/exam_controller.dart';
 import '../../data/models/class_model.dart';
 import '../../data/models/exam_model.dart';
-import '../../data/services/firestore_service.dart';
-import '../../data/services/auth_service.dart';
->>>>>>> fbbb185266d5a68084278b3b8f8327bb1bbbae36
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -22,7 +17,7 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  int _selectedNav = 0;
+  final int _selectedNav = 0;
   String _teacherName = '';
   final _classController = ClassController();
   final _examController  = ExamController();
@@ -65,10 +60,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-<<<<<<< HEAD
-=======
-  // ─── Header ──────────────────────────────────────────────────────────────────
->>>>>>> fbbb185266d5a68084278b3b8f8327bb1bbbae36
   Widget _header() {
     return Container(
       color: AppColors.white,
@@ -116,13 +107,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-<<<<<<< HEAD
-                  Text(
-                    'Xin chào,',
-                    style: TextStyle(fontSize: 13, color: AppColors.textLight),
-                  ),
-=======
->>>>>>> fbbb185266d5a68084278b3b8f8327bb1bbbae36
                   const Text(
                     'Xin chào,',
                     style: TextStyle(fontSize: 13, color: AppColors.textLight),
@@ -165,43 +149,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-<<<<<<< HEAD
-  Widget _statsSection() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-      child: Row(
-        children: _stats.map((stat) {
-          return Expanded(
-            child: Container(
-              margin: EdgeInsets.only(right: stat == _stats.last ? 0 : 12),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFF1F5F9)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  Icon(
-                    stat['icon'] as IconData,
-                    color: AppColors.primary,
-                    size: 24,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    stat['label'] as String,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: AppColors.textLight,
-=======
-  // ─── Stats — dùng stream lớp + stream đề thi ─────────────────────────────────
   Widget _statsSection() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
@@ -232,24 +179,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       decoration: BoxDecoration(
                         color: AppColors.white,
                         borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFFF1F5F9)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.04),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
                       child: Column(
                         children: [
-                          Icon(stat['icon'] as IconData, color: AppColors.primary),
+                          Icon(stat['icon'] as IconData, color: AppColors.primary, size: 24,),
                           const SizedBox(height: 8),
                           Text(stat['label'] as String,
-                              style: const TextStyle(fontSize: 12, color: AppColors.textMedium)),
+                              style: const TextStyle(fontSize: 11, color: AppColors.textLight)),
                           const SizedBox(height: 4),
                           Text(
                             stat['value'] as String,
                             style: const TextStyle(
                                 fontWeight: FontWeight.bold,
-                                fontSize: 18,
+                                fontSize: 20,
                                 color: AppColors.textDark),
                           ),
                         ],
                       ),
->>>>>>> fbbb185266d5a68084278b3b8f8327bb1bbbae36
                     ),
                   );
                 }).toList(),
@@ -261,10 +215,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-<<<<<<< HEAD
-=======
-  // ─── Lớp học — chip tap → ClassDetailScreen ──────────────────────────────────
->>>>>>> fbbb185266d5a68084278b3b8f8327bb1bbbae36
   Widget _classesSection() {
     return Column(
       children: [
@@ -300,45 +250,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
         SizedBox(
           height: 40,
-<<<<<<< HEAD
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            itemCount: _classes.length,
-            itemBuilder: (_, i) {
-              final selected = _selectedClass == i;
-              return GestureDetector(
-                onTap: () => setState(() => _selectedClass = i),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  margin: const EdgeInsets.only(right: 12),
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  decoration: BoxDecoration(
-                    color: selected ? AppColors.primary : AppColors.white,
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(
-                      color: selected
-                          ? AppColors.primary
-                          : const Color(0xFFE2E8F0),
-                    ),
-                    boxShadow: selected
-                        ? [
-                            BoxShadow(
-                              color: AppColors.primary.withOpacity(0.2),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ]
-                        : [],
-                  ),
-                  child: Center(
-                    child: Text(
-                      _classes[i],
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: selected ? AppColors.white : AppColors.textDark,
-=======
           child: StreamBuilder<List<ClassModel>>(
             stream: _classController.streamMyClasses(),
             builder: (context, snapshot) {
@@ -368,7 +279,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 itemBuilder: (_, i) {
                   final cls = classes[i];
                   return GestureDetector(
-                    // ← Tap mở ClassDetailScreen với dữ liệu thật
                     onTap: () => Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -377,7 +287,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           className: cls.name,
                           classCode: cls.code,
                         ),
->>>>>>> fbbb185266d5a68084278b3b8f8327bb1bbbae36
                       ),
                     ),
                     child: AnimatedContainer(
@@ -417,10 +326,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-<<<<<<< HEAD
-=======
-  // ─── Hoạt động gần đây — stream thật ─────────────────────────────────────────
->>>>>>> fbbb185266d5a68084278b3b8f8327bb1bbbae36
   Widget _activitiesSection() {
     return Column(
       children: [
@@ -428,8 +333,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
+            children: const [
+              Text(
                 'Hoạt động gần đây',
                 style: TextStyle(
                   fontSize: 17,
@@ -449,7 +354,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 }
 
-// ─── Widget riêng để kết hợp 2 stream (lớp + đề thi) thành activity feed ───────
 class _RecentActivitiesWidget extends StatelessWidget {
   final ClassController classController;
   final ExamController  examController;
@@ -483,10 +387,8 @@ class _RecentActivitiesWidget extends StatelessWidget {
           builder: (context, classSnap) {
             final activities = <Map<String, dynamic>>[];
 
-            // ── Đề thi vừa tạo / vừa giao ────────────────────────────────────
             for (final exam in (examSnap.data ?? [])) {
               if (exam.isAssigned) {
-                // Lấy lần giao gần nhất
                 final lastAssign = exam.assignments.isNotEmpty
                     ? exam.assignments.last
                     : null;
@@ -510,8 +412,6 @@ class _RecentActivitiesWidget extends StatelessWidget {
               }
             }
 
-            // ── Lớp vừa tạo ──────────────────────────────────────────────────
-            // (Dùng studentCount > 0 để phân biệt lớp có học sinh)
             for (final cls in (classSnap.data ?? [])) {
               if (cls.studentCount > 0) {
                 activities.add({
@@ -520,12 +420,11 @@ class _RecentActivitiesWidget extends StatelessWidget {
                   'iconColor': const Color(0xFF22C55E),
                   'title':     'Lớp đang có học sinh',
                   'subtitle':  '${cls.name} · ${cls.studentCount} học sinh',
-                  'sortKey':   '', // không có created_at ở đây nên để cuối
+                  'sortKey':   '', 
                 });
               }
             }
 
-            // Sắp xếp mới nhất trước
             activities.sort((a, b) =>
                 (b['sortKey'] as String).compareTo(a['sortKey'] as String));
 
@@ -625,41 +524,13 @@ class _RecentActivitiesWidget extends StatelessWidget {
               ],
             ),
           ),
-<<<<<<< HEAD
-          // Thời gian
-          Text(
-            a['time'] as String,
-            style: const TextStyle(fontSize: 10, color: AppColors.textHint),
-          ),
-=======
           if (timeStr.isNotEmpty)
             Text(
               timeStr,
               style: const TextStyle(fontSize: 10, color: AppColors.textHint),
             ),
->>>>>>> fbbb185266d5a68084278b3b8f8327bb1bbbae36
         ],
       ),
     );
   }
-<<<<<<< HEAD
-
-  void onNavTapped(int i) {
-    setState(() {
-      _selectedNav = i;
-    });
-    switch (i) {
-      case 0:
-        break;
-      case 1:
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const ClassListScreen()),
-        );
-        break;
-    }
-  }
 }
-=======
-}
->>>>>>> fbbb185266d5a68084278b3b8f8327bb1bbbae36

@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/app_colors.dart';
 import '../../widgets/common/custom_text_field.dart';
-import '../teacher/dashboard_screen.dart';
+import '../../screens/teacher/dashboard_screen.dart';
 import '../student/student_home_screen.dart';
 import '../../controllers/auth_controller.dart';
+import '../teacher/create_exam_screen.dart';
 
 class CompleteProfileScreen extends StatefulWidget {
   const CompleteProfileScreen({super.key});
@@ -27,25 +28,22 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     super.dispose();
   }
 
-<<<<<<< HEAD
-=======
   @override
   void initState() {
     super.initState();
+    // Tự động điền tên nếu người dùng đăng nhập bằng Google
     final googleName = FirebaseAuth.instance.currentUser?.displayName;
     if (googleName != null && googleName.isNotEmpty) {
       _nameCtrl.text = googleName;
     }
   }
 
->>>>>>> fbbb185266d5a68084278b3b8f8327bb1bbbae36
-void _showError(String msg) {
+  void _showError(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(msg),
       backgroundColor: AppColors.error,
       behavior: SnackBarBehavior.floating,
-      shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
     ));
   }
 
@@ -271,7 +269,6 @@ void _showError(String msg) {
         height: 56,
         child: ElevatedButton.icon(
           onPressed: isLoading ? null : saveProfile, 
-            // TODO: lưu profile lên Firestore
           icon: isLoading
               ? const SizedBox(
                   width: 20,
@@ -284,7 +281,7 @@ void _showError(String msg) {
               : const Icon(Icons.arrow_forward_rounded),
           label: Text(
            isLoading ? 'Đang lưu...' : 'Bắt đầu ngay',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.primary,
@@ -306,26 +303,23 @@ void _showError(String msg) {
     }
   
     setState(() => isLoading = true);
- 
   
     final error = await authCtrl.saveProfile(
       name:  _nameCtrl.text.trim(),
       role:  _role,
       phone: _phoneCtrl.text.trim(), 
     );
- 
 
     setState(() => isLoading = false);
- 
     
     if (!mounted) return;
- 
   
     if (error != null) {
       _showError(error);
       return;
     }
  
+
     if (_role == 'teacher') {
       Navigator.pushReplacement(
         context,
@@ -337,6 +331,5 @@ void _showError(String msg) {
         MaterialPageRoute(builder: (_) => const StudentHomeScreen()),
       );
     }
-    
    }
 }
