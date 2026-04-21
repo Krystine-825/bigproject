@@ -4,48 +4,43 @@ import '../../core/app_colors.dart';
 import '../../widgets/common/custom_button_nav.dart';
 import '../../data/models/class_member_model.dart';
 import '../../controllers/class_controller.dart';
- 
-class ClassDetailScreen extends StatefulWidget {
+import 'class_results_tab.dart';
 
+class ClassDetailScreen extends StatefulWidget {
   final String classId;
   final String className;
   final String classCode;
- 
+
   const ClassDetailScreen({
     super.key,
-    required this.classId, // THÊM
+    required this.classId,
     required this.className,
     required this.classCode,
   });
- 
+
   @override
   State<ClassDetailScreen> createState() => _ClassDetailScreenState();
 }
- 
+
 class _ClassDetailScreenState extends State<ClassDetailScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final _searchCtrl = TextEditingController();
   String _searchText = '';
- 
-
   final classController = ClassController();
- 
 
- 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
   }
- 
+
   @override
   void dispose() {
     _tabController.dispose();
     _searchCtrl.dispose();
     super.dispose();
   }
- 
 
   List<ClassMemberModel> _filterMembers(List<ClassMemberModel> members) {
     if (_searchText.isEmpty) return members;
@@ -55,51 +50,46 @@ class _ClassDetailScreenState extends State<ClassDetailScreen>
             (m.studentEmail ?? '').toLowerCase().contains(_searchText))
         .toList();
   }
- 
-  
+
   String _initials(String name) {
     final parts = name.trim().split(' ');
     if (parts.length == 1) return parts[0][0].toUpperCase();
     return (parts[parts.length - 2][0] + parts.last[0]).toUpperCase();
   }
- 
- 
+
   void _copyCode() {
     Clipboard.setData(ClipboardData(text: widget.classCode));
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Text('Đã sao chép mã lớp!'),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         duration: const Duration(seconds: 2),
       ),
     );
   }
- 
- 
+
   void _showKickDialog(ClassMemberModel member) {
     final name = member.studentName ?? 'học sinh này';
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Xác nhận',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        content: Text('Bạn có chắc muốn kick "$name" khỏi lớp không?'),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Xác nhận',
+            style: TextStyle(fontWeight: FontWeight.bold)),
+        content:
+            Text('Bạn có chắc muốn kick "$name" khỏi lớp không?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text(
-              'Huỷ',
-              style: TextStyle(color: AppColors.textMedium),
-            ),
+            child: const Text('Huỷ',
+                style: TextStyle(color: AppColors.textMedium)),
           ),
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
-              // THÊM: gọi Firebase kick thật
               try {
                 await classController.kickMember(member.id);
                 if (!mounted) return;
@@ -125,49 +115,56 @@ class _ClassDetailScreenState extends State<ClassDetailScreen>
                 );
               }
             },
-            child: const Text(
-              'Kick',
-              style: TextStyle(
-                color: Colors.red,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            child: const Text('Kick',
+                style: TextStyle(
+                    color: Colors.red, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
     );
   }
- 
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F7F8),
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(),
-            _buildCodeCard(),
-            _buildTabs(),
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  // Tab 1: Thành viên
-                  _buildMembersTab(),
-                  // Tab 2: Kết quả — làm sau
-                  _buildResultsTab(),
-                ],
-              ),
+    // Dùng 1 stream duy nhất cho cả header lẫn TabBarView
+    return StreamBuilder<List<ClassMemberModel>>(
+      stream: classController.streamMembers(widget.classId),
+      builder: (context, memberSnap) {
+        final members = memberSnap.data ?? [];
+        final memberCount = members.length;
+
+        return Scaffold(
+          backgroundColor: const Color(0xFFF5F7F8),
+          body: SafeArea(
+            child: Column(
+              children: [
+                _buildHeader(memberCount),
+                _buildCodeCard(),
+                _buildTabs(),
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      // Tab 1: Thành viên
+                      _buildMembersTab(members),
+                      // Tab 2: Kết quả — truyền classId + số học sinh thật
+                      ClassResultsTab(
+                        classId: widget.classId,
+                        totalStudents: memberCount,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
-      bottomNavigationBar: const CustomBottomNav(currentIndex: 1),
+          ),
+          bottomNavigationBar: const CustomBottomNav(currentIndex: 1),
+        );
+      },
     );
   }
- 
- 
-  Widget _buildHeader() {
+
+  Widget _buildHeader(int memberCount) {
     return Container(
       color: AppColors.white,
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
@@ -189,34 +186,25 @@ class _ClassDetailScreenState extends State<ClassDetailScreen>
                     color: AppColors.textDark,
                   ),
                 ),
-                // THÊM: đếm thành viên thật từ stream
-                StreamBuilder<List<ClassMemberModel>>(
-                  stream: classController.streamMembers(widget.classId),
-                  builder: (context, snap) {
-                    final count = snap.data?.length ?? 0;
-                    return Text(
-                      '$count học sinh',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: AppColors.textMedium,
-                      ),
-                    );
-                  },
+                Text(
+                  '$memberCount học sinh',
+                  style: const TextStyle(
+                      fontSize: 13, color: AppColors.textMedium),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 48), // giữ tiêu đề căn giữa
+          const SizedBox(width: 48),
         ],
       ),
     );
   }
- 
- 
+
   Widget _buildCodeCard() {
     return Container(
       margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      padding:
+          const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(16),
@@ -230,17 +218,12 @@ class _ClassDetailScreenState extends State<ClassDetailScreen>
       ),
       child: Row(
         children: [
-          // Mã lớp
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Mã lớp',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: AppColors.textMedium,
-                ),
-              ),
+              const Text('Mã lớp',
+                  style: TextStyle(
+                      fontSize: 13, color: AppColors.textMedium)),
               const SizedBox(height: 4),
               Text(
                 widget.classCode,
@@ -254,12 +237,11 @@ class _ClassDetailScreenState extends State<ClassDetailScreen>
             ],
           ),
           const Spacer(),
- 
-          // Nút chia sẻ
           GestureDetector(
             onTap: _copyCode,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
                 color: AppColors.primaryLight,
                 borderRadius: BorderRadius.circular(12),
@@ -267,7 +249,8 @@ class _ClassDetailScreenState extends State<ClassDetailScreen>
               child: const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.share_rounded, color: AppColors.primary, size: 18),
+                  Icon(Icons.share_rounded,
+                      color: AppColors.primary, size: 18),
                   SizedBox(width: 6),
                   Text(
                     'Chia sẻ',
@@ -285,7 +268,6 @@ class _ClassDetailScreenState extends State<ClassDetailScreen>
       ),
     );
   }
- 
 
   Widget _buildTabs() {
     return Container(
@@ -295,13 +277,9 @@ class _ClassDetailScreenState extends State<ClassDetailScreen>
         labelColor: AppColors.primary,
         unselectedLabelColor: AppColors.textMedium,
         labelStyle: const TextStyle(
-          fontWeight: FontWeight.bold,
-          fontSize: 14,
-        ),
+            fontWeight: FontWeight.bold, fontSize: 14),
         unselectedLabelStyle: const TextStyle(
-          fontWeight: FontWeight.w600,
-          fontSize: 14,
-        ),
+            fontWeight: FontWeight.w600, fontSize: 14),
         indicatorColor: AppColors.primary,
         indicatorWeight: 2.5,
         tabs: const [
@@ -311,114 +289,97 @@ class _ClassDetailScreenState extends State<ClassDetailScreen>
       ),
     );
   }
- 
 
-  Widget _buildMembersTab() {
+  Widget _buildMembersTab(List<ClassMemberModel> allMembers) {
     return Column(
       children: [
         _buildSearchBar(),
-        Expanded(child: _buildMembersList()),
+        Expanded(child: _buildMembersList(allMembers)),
       ],
     );
   }
- 
- 
+
   Widget _buildSearchBar() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _searchCtrl,
-              onChanged: (v) => setState(() => _searchText = v.toLowerCase()),
-              decoration: InputDecoration(
-                hintText: 'Tìm kiếm học sinh...',
-                hintStyle: const TextStyle(
-                  color: AppColors.textHint,
-                  fontSize: 14,
-                ),
-                prefixIcon: const Icon(
-                  Icons.search_rounded,
-                  color: AppColors.textHint,
-                  size: 20,
-                ),
-                filled: true,
-                fillColor: AppColors.white,
-                contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
+      child: TextField(
+        controller: _searchCtrl,
+        onChanged: (v) =>
+            setState(() => _searchText = v.toLowerCase()),
+        decoration: InputDecoration(
+          hintText: 'Tìm kiếm học sinh...',
+          hintStyle: const TextStyle(
+              color: AppColors.textHint, fontSize: 14),
+          prefixIcon: const Icon(Icons.search_rounded,
+              color: AppColors.textHint, size: 20),
+          filled: true,
+          fillColor: AppColors.white,
+          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
           ),
-        ],
+        ),
       ),
     );
   }
- 
- 
-  Widget _buildMembersList() {
-    return StreamBuilder<List<ClassMemberModel>>(
-      stream: classController.streamMembers(widget.classId),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          return Center(
-            child: Text('Lỗi: ${snapshot.error}',
-                style: const TextStyle(color: AppColors.textMedium)),
-          );
-        }
- 
-        final list = _filterMembers(snapshot.data ?? []);
- 
-        if (list.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.search_off_rounded,
-                    size: 52, color: AppColors.textHint),
-                const SizedBox(height: 12),
-                Text(
-                  _searchText.isEmpty
-                      ? 'Chưa có học sinh nào trong lớp'
-                      : 'Không tìm thấy "$_searchText"',
-                  style: const TextStyle(color: AppColors.textMedium),
-                ),
-              ],
-            ),
-          );
-        }
- 
-        return ListView.builder(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
-          itemCount: list.length,
-          itemBuilder: (_, i) => _buildMemberCard(list[i], i),
-        );
-      },
+
+  Widget _buildMembersList(List<ClassMemberModel> allMembers) {
+    final list = _filterMembers(allMembers);
+
+    if (allMembers.isEmpty) {
+      return const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.group_off_rounded,
+                size: 52, color: AppColors.textHint),
+            SizedBox(height: 12),
+            Text('Chưa có học sinh nào trong lớp',
+                style: TextStyle(color: AppColors.textMedium)),
+          ],
+        ),
+      );
+    }
+
+    if (list.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.search_off_rounded,
+                size: 52, color: AppColors.textHint),
+            const SizedBox(height: 12),
+            Text('Không tìm thấy "$_searchText"',
+                style:
+                    const TextStyle(color: AppColors.textMedium)),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
+      itemCount: list.length,
+      itemBuilder: (_, i) => _buildMemberCard(list[i], i),
     );
   }
- 
-  
+
   Widget _buildMemberCard(ClassMemberModel member, int index) {
     final colorIndex = index % AppColors.avatarBgColors.length;
-    final name  = member.studentName  ?? 'Không rõ';
+    final name = member.studentName ?? 'Không rõ';
     final email = member.studentEmail ?? '';
- 
+
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding:
+          const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
         children: [
-          // Avatar chữ cái (GIỮ NGUYÊN)
           Container(
             width: 44,
             height: 44,
@@ -438,33 +399,22 @@ class _ClassDetailScreenState extends State<ClassDetailScreen>
             ),
           ),
           const SizedBox(width: 12),
- 
-          // Tên + email (GIỮ NGUYÊN layout)
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  name,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 15,
-                    color: AppColors.textDark,
-                  ),
-                ),
+                Text(name,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                        color: AppColors.textDark)),
                 const SizedBox(height: 2),
-                Text(
-                  email,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textMedium,
-                  ),
-                ),
+                Text(email,
+                    style: const TextStyle(
+                        fontSize: 12, color: AppColors.textMedium)),
               ],
             ),
           ),
- 
-          
           GestureDetector(
             onTap: () => _showKickDialog(member),
             child: Container(
@@ -474,34 +424,9 @@ class _ClassDetailScreenState extends State<ClassDetailScreen>
                 color: Color(0xFFFFF0F0),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
-                Icons.person_remove_rounded,
-                color: Colors.red,
-                size: 18,
-              ),
+              child: const Icon(Icons.person_remove_rounded,
+                  color: Colors.red, size: 18),
             ),
-          ),
-        ],
-      ),
-    );
-  }
- 
-
-  Widget _buildResultsTab() {
-    return const Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.bar_chart_rounded, size: 56, color: AppColors.textHint),
-          SizedBox(height: 12),
-          Text(
-            'Chưa có kết quả nào',
-            style: TextStyle(color: AppColors.textMedium, fontSize: 15),
-          ),
-          SizedBox(height: 6),
-          Text(
-            'Giao đề thi để xem kết quả học sinh',
-            style: TextStyle(color: AppColors.textHint, fontSize: 13),
           ),
         ],
       ),

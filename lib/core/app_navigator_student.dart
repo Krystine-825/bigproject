@@ -2,6 +2,8 @@
 import 'package:flutter/material.dart';
 import '../../screens/student/student_home_screen.dart';
 import '../../screens/student/student_class_list_screen.dart';
+import '../../screens/common/user_profile_screen.dart';
+import '../../screens/student/results_screen.dart';
 
 class AppNavigator {
   static void handleBottomNavTapSt(BuildContext context, int index) {
@@ -15,11 +17,11 @@ class AppNavigator {
         break;
 
       case 2: // Kết quả
-       
+       _goToResults(context);
         break;
 
       case 3: // Cá nhân
-       
+       _goToProfile(context);
         break;
     }
   }
@@ -46,5 +48,29 @@ class AppNavigator {
     }
   }
 
+   static void _goToProfile(BuildContext context) {
+    final currentRoute = ModalRoute.of(context)?.settings.name;
+    if (currentRoute != '/profile') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const UserProfileScreen(),
+          settings: const RouteSettings(name: '/profile'),
+        ),
+      );
+    }
+  }
+   static void _goToResults(BuildContext context) {
+    final currentRoute = ModalRoute.of(context)?.settings.name;
+    if (currentRoute != '/student/results') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const StudentResultsScreen(),
+          settings: const RouteSettings(name: '/student/results'),
+        ),
+      );
+    }
+   }
  
 }
