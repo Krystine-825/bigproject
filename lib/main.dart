@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart'; 
 import 'firebase_options.dart';  
 import 'package:firebase_app_check/firebase_app_check.dart';
-import 'screens/shared/personal_info_screen.dart';
+import 'screens/shared/notification_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -34,7 +34,7 @@ class MyApp extends StatelessWidget {
         fontFamily: 'Lexend',
         useMaterial3: true,
       ),
-      home: const PersonalInfoScreen(),
+      home: const NotificationScreen(),
     );
   }
 }
