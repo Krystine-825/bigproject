@@ -94,18 +94,30 @@ class SubmissionController {
     });
   }
 
-  /// Stats cho home screen: tổng chưa làm / mới hôm nay / hoàn thành
+  /// ✅ MỚI: Stream tất cả bài nộp của 1 đề trong 1 lớp (teacher side)
+  /// Dùng cho AssignmentResultScreen để hiện điểm từng học sinh
+  Stream<List<SubmissionModel>> streamSubmissionsForExamAndClass({
+    required String examId,
+    required String classId,
+  }) {
+    return firestore
+        .streamWhere('submissions', field: 'exam_id', isEqualTo: examId)
+        .map((snap) => snap.docs
+            .map((d) => SubmissionModel.fromJson(d.data(), id: d.id))
+            .where((s) => s.classId == classId)
+            .toList());
+  }
+
+  /// Stats cho home screen (tối ưu Firestore Reads)
   Future<Map<String, int>> getStudentStats() async {
     if (_myUid.isEmpty) return {'pending': 0, 'newToday': 0, 'done': 0};
     try {
-      // Lấy submissions của student
-      final subSnap = await firestore.queryWhere(
+      // chỉ yêu cầu Firebase đếm số lượng document, không tải data về máy
+      final done = await firestore.countWhere(
         'submissions',
         field: 'student_id',
         isEqualTo: _myUid,
       );
-      final done = subSnap.docs.length;
-
       return {'pending': 0, 'newToday': 0, 'done': done};
     } catch (_) {
       return {'pending': 0, 'newToday': 0, 'done': 0};

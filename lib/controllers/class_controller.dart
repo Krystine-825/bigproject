@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'package:cloud_firestore/cloud_firestore.dart'; // Thêm thư viện này
 import '../data/services/auth_service.dart';
 import '../data/services/firestore_service.dart';
 import '../data/models/class_model.dart';
@@ -9,6 +10,10 @@ class ClassController {
   final authService = AuthService();
   final fireStoreService = FireStoreService();
 
+  // bỏ Future.wait để tránh N+1 Query
+  // lưu lại thông tin User và Class đã tải để không gọi Firebase nhiều lần (Tránh N+1 Query)
+  final Map<String, UserModel> _userCache = {};
+  final Map<String, Map<String, dynamic>> _classCache = {};
 
   String get _myUid => authService.currentUid ?? '';
 
@@ -69,32 +74,39 @@ Stream<List<ClassModel>> streamMyClasses() {
             .toList());
   }
 
+  // Tính toán Dashboard (Tương thích mọi phiên bản Firestore)
   Future<Map<String, int>> getDashboardStats() async {
     try {
+      // dùng count() tránh lỗi package
       final classCount = await fireStoreService.countWhere(
           'classes', field: 'teacher_id', isEqualTo: _myUid);
       final examCount = await fireStoreService.countWhere(
           'exams', field: 'teacher_id', isEqualTo: _myUid);
 
-      // Đọc student_count đã cache sẵn trong mỗi document lớp
-      // → chỉ 1 query thay vì N query như trước
+      // Kéo danh sách lớp về và tự cộng tổng student_count
       final classSnap = await fireStoreService.queryWhere(
-        'classes',
-        field: 'teacher_id',
+        'classes', 
+        field: 'teacher_id', 
         isEqualTo: _myUid,
       );
-      final studentCount = classSnap.docs.fold<int>(
-        0,
-        (sum, d) => sum + ((d.data()['student_count'] as num?)?.toInt() ?? 0),
-      );
+      
+      int studentCount = classSnap.docs.fold<int>(0, (sum, d) {
+        final raw = (d.data()['student_count'] as num?)?.toInt() ?? 0;
+        return sum + (raw < 0 ? 0 : raw);
+      });
 
-      return {'classes': classCount, 'students': studentCount, 'exams': examCount};
+      return {
+        'classes': classCount, 
+        'students': studentCount, 
+        'exams': examCount
+      };
     } catch (_) {
       return {'classes': 0, 'students': 0, 'exams': 0};
     }
   }
 
-   Stream<List<ClassMemberModel>> streamMembers(String classId) {
+  // dùng cache khi stream member
+  Stream<List<ClassMemberModel>> streamMembers(String classId) {
     return fireStoreService
         .streamWhere('class_members', field: 'class_id', isEqualTo: classId)
         .asyncMap((snap) async {
@@ -105,14 +117,16 @@ Stream<List<ClassModel>> streamMyClasses() {
  
       // Join thông tin user (name, email) song song
       final enriched = await Future.wait(members.map((m) async {
+        // có trong RAM máy thì không gọi Firebase nữa
+        if (_userCache.containsKey(m.studentId)) {
+          return m.copyWith(studentName: _userCache[m.studentId]!.name, studentEmail: _userCache[m.studentId]!.email);
+        }
         try {
           final userDoc = await fireStoreService.getDocument('users', m.studentId);
           if (userDoc.exists && userDoc.data() != null) {
-            final user =  UserModel.fromJson(userDoc.data()!);
-            return m.copyWith(
-              studentName: user.name,
-              studentEmail: user.email,
-            );
+            final user = UserModel.fromJson(userDoc.data()!);
+            _userCache[m.studentId] = user; // Lưu vào Cache
+            return m.copyWith(studentName: user.name, studentEmail: user.email);
           }
         } catch (_) {}
         return m; // nếu lỗi thì trả nguyên không có name/email
@@ -139,21 +153,19 @@ Stream<List<ClassModel>> streamMyClasses() {
     final memberDoc = await fireStoreService.getDocument('class_members', memberId);
     final classId = memberDoc.data()?['class_id'] as String?;
 
-    await fireStoreService.updateDocument(
-      'class_members',
-      memberId,
-      {'status': 'kicked'},
-    );
+    await fireStoreService.updateDocument('class_members', memberId, {'status': 'kicked'});
 
     // Giảm student_count trong document lớp
     if (classId != null) {
-      await fireStoreService.incrementField(
-        'classes', classId,
-        field: 'student_count', delta: -1,
-      );
+      final classDoc = await fireStoreService.getDocument('classes', classId);
+      final currentCount = (classDoc.data()?['student_count'] as num?)?.toInt() ?? 0;
+      if (currentCount > 0) {
+        await fireStoreService.incrementField('classes', classId, field: 'student_count', delta: -1);
+      }
     }
   }
 
+  // đồng bộ writebatch
   Future<ClassModel> joinClass({
     required String code,
     String? passwordHash,
@@ -174,55 +186,43 @@ Stream<List<ClassModel>> streamMyClasses() {
     final classData = ClassModel.fromJson(classDoc.data(), id: classDoc.id);
  
     if (classData.passwordHash != null && classData.passwordHash!.isNotEmpty) {
-      if(passwordHash == null || passwordHash.isEmpty) {
-        throw Exception('Lớp này yêu cầu mật khẩu');
-      }
-      if(passwordHash != classData.passwordHash) {
-        throw Exception('Mật khẩu không đúng');
-      }
+      if (passwordHash == null || passwordHash.isEmpty) throw Exception('Lớp này yêu cầu mật khẩu');
+      if (passwordHash != classData.passwordHash) throw Exception('Mật khẩu không đúng');
     }
- 
-    // Kiểm tra nếu đã là thành viên thì không thêm nữa
-    final memberSnap = await fireStoreService.queryWhere(
-      'class_members',
-      field: 'class_id',
-      isEqualTo: classDoc.id,
-    );
-   final existingMember = memberSnap.docs.any((d) {
-    final data= d.data();
-    return data['student_id'] == studentId && data['status'] == 'active';
-   });
-   if(existingMember) throw Exception('Bạn đã là thành viên của lớp này');
 
-    // Thêm thành viên mới (kể cả đã từng bị kick trước đó)
-    final newMember = ClassMemberModel(
-      id: '',
-      classId: classDoc.id,
-      studentId: studentId,
-      status: 'active',
-    );
-    await fireStoreService.addDocument('class_members', newMember.toJson());
+    final memberSnap = await fireStoreService.queryWhere('class_members', field: 'class_id', isEqualTo: classDoc.id);
+    final existingMember = memberSnap.docs.any((d) => d.data()['student_id'] == studentId && d.data()['status'] == 'active');
+    
+    if (existingMember) throw Exception('Bạn đã là thành viên của lớp này');
 
-    // Tăng student_count trong document lớp
-    await fireStoreService.incrementField(
-      'classes', classDoc.id,
-      field: 'student_count', delta: 1,
-    );
- 
+    final newMember = ClassMemberModel(id: '', classId: classDoc.id, studentId: studentId, status: 'active');
+
+    // Gom thao tác Thêm người và Tăng biến đếm vào 1 Batch để tránh rủi ro đứt mạng
+    final batch = FirebaseFirestore.instance.batch();
+    
+    final newMemberRef = FirebaseFirestore.instance.collection('class_members').doc();
+    batch.set(newMemberRef, newMember.toJson());
+    
+    final classRef = FirebaseFirestore.instance.collection('classes').doc(classDoc.id);
+    batch.update(classRef, {'student_count': FieldValue.increment(1)});
+    
+    await batch.commit();
+
     return classData;
   }
 
- Stream<List<Map<String, dynamic>>> streamStudentClasses() {
+  // dùng cache khi stream student class
+  Stream<List<Map<String, dynamic>>> streamStudentClasses() {
     final studentId = authService.currentUid ?? '';
     return fireStoreService.streamWhere('class_members', field: 'student_id', isEqualTo: studentId)
         .asyncMap((snap) async {
-      // Chỉ lấy các membership active
-      final activeMembers = snap.docs
-          .where((d) => d.data()['status'] == 'active')
-          .toList();
- 
+      final activeMembers = snap.docs.where((d) => d.data()['status'] == 'active').toList();
+
       final result = await Future.wait(activeMembers.map((d) async {
         final classId = d.data()['class_id'] as String;
+        
+        if (_classCache.containsKey(classId)) return _classCache[classId]; // Dùng Cache
+
         try {
           final classDoc = await fireStoreService.getDocument('classes', classId);
           if (!classDoc.exists || classDoc.data() == null) return null;
@@ -231,20 +231,26 @@ Stream<List<ClassModel>> streamMyClasses() {
  
           // Lấy tên giáo viên
           String teacherName = '';
-          try {
-            final teacherDoc =
-                await fireStoreService.getDocument('users', cls.teacherId);
+          if (_userCache.containsKey(cls.teacherId)) {
+            teacherName = _userCache[cls.teacherId]!.name;
+          } else {
+            final teacherDoc = await fireStoreService.getDocument('users', cls.teacherId);
             if (teacherDoc.exists && teacherDoc.data() != null) {
-              teacherName = UserModel.fromJson(teacherDoc.data()!).name;
+              final user = UserModel.fromJson(teacherDoc.data()!);
+              _userCache[cls.teacherId] = user; // Cập nhật Cache
+              teacherName = user.name;
             }
-          } catch (_) {}
- 
-          return {
+          }
+
+          final classInfo = {
             'classId': cls.id,
             'name': cls.name,
             'code': cls.code,
             'teacher': teacherName.isNotEmpty ? 'GV: $teacherName' : 'Giáo viên',
           };
+          
+          _classCache[classId] = classInfo; // Lưu lớp vào Cache
+          return classInfo;
         } catch (_) {
           return null;
         }
