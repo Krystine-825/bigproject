@@ -4,6 +4,7 @@ import '../../screens/teacher/dashboard_screen.dart';
 import '../../screens/teacher/class_list_screen.dart';
 import '../../screens/teacher/create_exam_screen.dart';
 import '../../screens/teacher/exam_bank_screen.dart';
+import '../../screens/common/user_profile_screen.dart';
 
 
 class AppNavigator {
@@ -26,6 +27,7 @@ class AppNavigator {
         break;
 
       case 4: // Cá nhân
+       _goToProfile(context);
         break;
     }
   }
@@ -85,5 +87,16 @@ class AppNavigator {
     }
 }
 
+  static void _goToProfile(BuildContext context) {
+    final currentRoute = ModalRoute.of(context)?.settings.name;
 
+    if (currentRoute != '/profile') {
+      Navigator.push(context,
+        MaterialPageRoute(
+          builder: (_) => const UserProfileScreen(),
+          settings: const RouteSettings(name: '/profile'),
+        ),
+      );
+    }
+  }
 }

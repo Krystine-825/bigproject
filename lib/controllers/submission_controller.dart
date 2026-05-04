@@ -14,12 +14,11 @@ class SubmissionController {
     required String examId,
     required String classId,
     required List<QuestionModel> questions,
-    required Map<int, String> studentAnswers, // questionId → answer
+    required Map<int, String> studentAnswers,
     required int durationSeconds,
   }) async {
     if (_myUid.isEmpty) throw Exception('Chưa đăng nhập');
 
-    // Tính điểm
     int correct = 0;
     final answers = <SubmissionAnswer>[];
 
@@ -51,12 +50,11 @@ class SubmissionController {
     return SubmissionModel.fromJson(submission.toJson(), id: docRef.id);
   }
 
-  /// Kiểm tra xem học sinh đã nộp bài chưa (cho 1 đề + 1 lớp)
+  /// Kiểm tra học sinh đã nộp chưa (1 đề + 1 lớp)
   Future<SubmissionModel?> getMySubmission(
       {required String examId, required String classId}) async {
     if (_myUid.isEmpty) return null;
     try {
-      // query theo exam_id + student_id, sau đó filter classId
       final snap = await firestore.queryWhere(
         'submissions',
         field: 'exam_id',
@@ -108,36 +106,42 @@ class SubmissionController {
             .toList());
   }
 
+<<<<<<< HEAD
   /// Stats cho home screen (tối ưu Firestore Reads)
   Future<Map<String, int>> getStudentStats() async {
     if (_myUid.isEmpty) return {'pending': 0, 'newToday': 0, 'done': 0};
     try {
       // chỉ yêu cầu Firebase đếm số lượng document, không tải data về máy
       final done = await firestore.countWhere(
+=======
+  /// Stats cho home screen
+  Future<Map<String, int>> getStudentStats() async {
+    if (_myUid.isEmpty) return {'pending': 0, 'newToday': 0, 'done': 0};
+    try {
+      final subSnap = await firestore.queryWhere(
+>>>>>>> origin/caovananh
         'submissions',
         field: 'student_id',
         isEqualTo: _myUid,
       );
+<<<<<<< HEAD
+=======
+      final done = subSnap.docs.length;
+>>>>>>> origin/caovananh
       return {'pending': 0, 'newToday': 0, 'done': done};
     } catch (_) {
       return {'pending': 0, 'newToday': 0, 'done': 0};
     }
   }
 
-
   bool _isCorrect(QuestionModel q, String chosen) {
     if (chosen.isEmpty) return false;
     final correctAnswer = q.answer.trim().toLowerCase();
     final studentAnswer = chosen.trim().toLowerCase();
-
     switch (q.type) {
       case 'multiple_choice':
-        // answer lưu dạng "A", "B", "C", "D"
-        return studentAnswer == correctAnswer;
       case 'true_false':
-        return studentAnswer == correctAnswer;
       case 'fill_in':
-        return studentAnswer == correctAnswer;
       default:
         return studentAnswer == correctAnswer;
     }

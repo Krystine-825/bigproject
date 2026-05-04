@@ -25,7 +25,11 @@ class _StudentResultsScreenState extends State<StudentResultsScreen> {
   double get _avgScore => _results.isEmpty
       ? 0.0
       : double.parse(
+<<<<<<< HEAD
           (_results.fold(0.0, (s, r) => s + ((r['score'] as num).toDouble())) /
+=======
+          (_results.fold(0.0, (s, r) => s + (r['score'] as double)) /
+>>>>>>> origin/caovananh
                   _results.length)
               .toStringAsFixed(1),
         );
@@ -357,6 +361,7 @@ class _StudentResultsScreenState extends State<StudentResultsScreen> {
   Widget _pagination() {
     if (_totalPages <= 1) return const SizedBox.shrink();
 
+<<<<<<< HEAD
     int startPage = math.max(1, currentPage - 2);
     int endPage = math.min(_totalPages, startPage + 4);
     if (endPage - startPage < 4) {
@@ -364,6 +369,9 @@ class _StudentResultsScreenState extends State<StudentResultsScreen> {
     }
     
     final pages = List.generate(endPage - startPage + 1, (i) => startPage + i);
+=======
+    final pages = List.generate(_totalPages.clamp(0, 4), (i) => i + 1);
+>>>>>>> origin/caovananh
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
