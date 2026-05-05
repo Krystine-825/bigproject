@@ -4,6 +4,7 @@ import 'screens/auth/onboarding_screen.dart';
 import 'package:firebase_core/firebase_core.dart'; 
 import 'firebase_options.dart';  
 import 'package:firebase_app_check/firebase_app_check.dart';
+import 'data/services/fcm_service.dart'; 
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,7 +16,7 @@ void main() async {
     androidProvider: kDebugMode ? AndroidProvider.debug : AndroidProvider.playIntegrity, 
     appleProvider: kDebugMode ? AppleProvider.debug : AppleProvider.deviceCheck,
   );
-  
+   await FcmService.initBackgroundHandler();
   runApp(const MyApp());
 }
 

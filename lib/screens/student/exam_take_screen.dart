@@ -5,6 +5,8 @@ import '../../data/models/exam_model.dart';
 import '../../data/models/question_model.dart';
 import '../../data/models/submission_model.dart';
 import '../../controllers/submission_controller.dart';
+import 'exam_review_screen.dart'; // ← MỚI
+import 'list_exam.dart';
 
 class ExamTakeScreen extends StatefulWidget {
   final ExamModel exam;
@@ -79,6 +81,7 @@ class _ExamTakeScreenState extends State<ExamTakeScreen> {
         questions: _questions,
         studentAnswers: _answers,
         durationSeconds: _totalSeconds - _remainingSeconds,
+        examName: widget.exam.name,
       );
       setState(() {
         _submitted = true;
@@ -763,30 +766,88 @@ class _ExamTakeScreenState extends State<ExamTakeScreen> {
               ),
               const SizedBox(height: 32),
 
-              // Nút về trang trước
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () => Navigator.of(context).pop(true),
-                  icon: const Icon(Icons.arrow_back_rounded),
-                  label: const Text(
-                    'Về danh sách đề thi',
-                    style: TextStyle(fontSize: 16),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16)),
-                  ),
-                ),
-              ),
+              // ← MỚI: nút "Xem đáp án" nếu giáo viên cho phép
+              ..._buildResultButtons(),
             ],
           ),
         ),
       ),
     );
+  }
+
+  // ← MỚI: trả về danh sách nút dưới màn hình kết quả
+  List<Widget> _buildResultButtons() {
+    // Lấy assignment tương ứng với classId đang thi
+    ExamAssignment? assignment;
+    try {
+      assignment = widget.exam.assignments
+          .firstWhere((a) => a.classId == widget.classId);
+    } catch (_) {
+      assignment = widget.exam.assignments.isNotEmpty
+          ? widget.exam.assignments.first
+          : null;
+    }
+
+    final canReview =
+        assignment?.showAnswerAfterSubmit ?? false;
+
+    return [
+      // Nút "Xem đáp án" — chỉ hiện khi giáo viên cho phép
+      if (canReview && _result != null) ...[
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ExamReviewScreen(
+                    exam: widget.exam,
+                    classId: widget.classId,
+                    submission: _result!,
+                  ),
+                ),
+              );
+            },
+            icon: const Icon(Icons.visibility_rounded),
+            label: const Text(
+              'Xem đáp án chi tiết',
+              style: TextStyle(fontSize: 16),
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.primary,
+              side: const BorderSide(color: AppColors.primary, width: 1.5),
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+      ],
+      // Nút về danh sách
+      SizedBox(
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          onPressed: () => Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const ListExamsScreen()),
+            (route) => route.isFirst,
+          ),
+          icon: const Icon(Icons.arrow_back_rounded),
+          label: const Text(
+            'Về danh sách đề thi',
+            style: TextStyle(fontSize: 16),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.primary,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16)),
+          ),
+        ),
+      ),
+    ];
   }
 
   Widget _resultStat(

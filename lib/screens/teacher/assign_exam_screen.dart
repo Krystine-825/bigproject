@@ -16,14 +16,15 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
   final _controller = ExamController();
 
   List<Map<String, String>> _classes         = [];
-  Set<String>               _selectedIds     = {};   // ← multi-select
+  Set<String>               _selectedIds     = {};
   bool                      _isLoadingClasses = true;
 
-  int      _durationMinutes = 45;
-  DateTime _openAt  = DateTime.now().add(const Duration(hours: 1));
-  DateTime _closeAt = DateTime.now().add(const Duration(days: 7));
-  int      _maxAttempts = 1;
-  bool     _isAssigning = false;
+  int      _durationMinutes       = 45;
+  DateTime _openAt                = DateTime.now().add(const Duration(hours: 1));
+  DateTime _closeAt               = DateTime.now().add(const Duration(days: 7));
+  int      _maxAttempts           = 1;
+  bool     _showAnswerAfterSubmit = false; // ← MỚI
+  bool     _isAssigning           = false;
 
   @override
   void initState() {
@@ -33,11 +34,9 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
 
   Future<void> _loadClasses() async {
     try {
-      final all = await _controller.getMyClasses();
-      // Lọc ra những lớp chưa được giao đề này
+      final all        = await _controller.getMyClasses();
       final assignedIds = widget.exam.assignments.map((a) => a.classId).toSet();
-      final available   = all.where((c) => !assignedIds.contains(c['id'])).toList();
-
+      final available  = all.where((c) => !assignedIds.contains(c['id'])).toList();
       setState(() {
         _classes          = available;
         _isLoadingClasses = false;
@@ -47,7 +46,6 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
     }
   }
 
- 
   bool get _allSelected =>
       _classes.isNotEmpty &&
       _classes.every((c) => _selectedIds.contains(c['id']));
@@ -72,7 +70,6 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
     });
   }
 
-  
   Future<void> _handleAssign() async {
     if (_selectedIds.isEmpty) {
       _snack('Vui lòng chọn ít nhất 1 lớp', isError: true);
@@ -91,13 +88,15 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
         final cls = _classes.firstWhere((c) => c['id'] == id);
         try {
           await _controller.assignExam(
-            examId:          widget.exam.id,
-            classId:         id,
-            className:       cls['name']!,
-            durationMinutes: _durationMinutes,
-            openAt:          _openAt,
-            closeAt:         _closeAt,
-            maxAttempts:     _maxAttempts,
+            examId:                widget.exam.id,
+            classId:               id,
+            className:             cls['name']!,
+            durationMinutes:       _durationMinutes,
+            openAt:                _openAt,
+            closeAt:               _closeAt,
+            maxAttempts:           _maxAttempts,
+            examName:              widget.exam.name,
+            showAnswerAfterSubmit: _showAnswerAfterSubmit, // ← MỚI
           );
         } catch (e) {
           errors.add(cls['name']!);
@@ -148,6 +147,44 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
                   : 'Đã giao cho $count lớp:\n$classNames',
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 13, color: AppColors.textMedium),
+            ),
+            // ── Hiển thị cài đặt đáp án trong dialog ───────────────
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: _showAnswerAfterSubmit
+                    ? const Color(0xFFECFDF5)
+                    : const Color(0xFFFFF7ED),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    _showAnswerAfterSubmit
+                        ? Icons.visibility_rounded
+                        : Icons.visibility_off_rounded,
+                    size: 16,
+                    color: _showAnswerAfterSubmit
+                        ? const Color(0xFF10B981)
+                        : Colors.orange,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    _showAnswerAfterSubmit
+                        ? 'Học sinh được xem đáp án sau khi nộp'
+                        : 'Học sinh không được xem đáp án',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: _showAnswerAfterSubmit
+                          ? const Color(0xFF10B981)
+                          : Colors.orange,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -202,7 +239,6 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
                   _buildExamInfoCard(),
                   const SizedBox(height: 20),
 
-                  // Lớp đã được giao trước đó
                   if (widget.exam.assignments.isNotEmpty) ...[
                     _buildSectionTitle('Đã giao cho'),
                     const SizedBox(height: 10),
@@ -221,6 +257,12 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
                   _buildSectionTitle('Số lần làm bài'),
                   const SizedBox(height: 10),
                   _buildAttemptsCard(),
+                  const SizedBox(height: 20),
+
+                  // ── MỚI: Cài đặt đáp án ──────────────────────────
+                  _buildSectionTitle('Cài đặt đáp án'),
+                  const SizedBox(height: 10),
+                  _buildShowAnswerCard(),
                 ],
               ),
             ),
@@ -315,7 +357,6 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
     );
   }
 
- 
   Widget _buildClassMultiSelect() {
     if (_isLoadingClasses) {
       return const Center(
@@ -351,7 +392,6 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
       ),
       child: Column(
         children: [
-        
           InkWell(
             onTap: _toggleSelectAll,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
@@ -370,16 +410,14 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
                     ),
                   ),
                   child: _allSelected
-                      ? const Icon(Icons.check_rounded,
-                          size: 14, color: Colors.white)
+                      ? const Icon(Icons.check_rounded, size: 14, color: Colors.white)
                       : null,
                 ),
                 const SizedBox(width: 14),
                 const Expanded(
                   child: Text('Chọn tất cả',
                       style: TextStyle(fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textDark)),
+                          fontWeight: FontWeight.bold, color: AppColors.textDark)),
                 ),
                 Text(
                   '${_selectedIds.length}/${_classes.length} lớp',
@@ -397,39 +435,32 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
 
           const Divider(height: 1, indent: 16, endIndent: 16),
 
-      //danh sách lớp
           ...List.generate(_classes.length, (i) {
-            final cls        = _classes[i];
-            final id         = cls['id']!;
-            final name       = cls['name']!;
-            final isChecked  = _selectedIds.contains(id);
-            final isLast     = i == _classes.length - 1;
+            final cls       = _classes[i];
+            final id        = cls['id']!;
+            final name      = cls['name']!;
+            final isChecked = _selectedIds.contains(id);
+            final isLast    = i == _classes.length - 1;
 
             return Column(
               children: [
                 InkWell(
                   onTap: () => _toggleClass(id),
                   borderRadius: isLast
-                      ? const BorderRadius.vertical(
-                          bottom: Radius.circular(16))
+                      ? const BorderRadius.vertical(bottom: Radius.circular(16))
                       : BorderRadius.zero,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 16, vertical: 14),
                     child: Row(children: [
-                      // Checkbox tùy chỉnh
                       AnimatedContainer(
                         duration: const Duration(milliseconds: 180),
                         width: 22, height: 22,
                         decoration: BoxDecoration(
-                          color: isChecked
-                              ? AppColors.primary
-                              : Colors.transparent,
+                          color: isChecked ? AppColors.primary : Colors.transparent,
                           borderRadius: BorderRadius.circular(6),
                           border: Border.all(
-                            color: isChecked
-                                ? AppColors.primary
-                                : AppColors.border,
+                            color: isChecked ? AppColors.primary : AppColors.border,
                             width: 2,
                           ),
                         ),
@@ -439,8 +470,6 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
                             : null,
                       ),
                       const SizedBox(width: 14),
-
-                      // Icon lớp
                       Container(
                         width: 38, height: 38,
                         decoration: BoxDecoration(
@@ -451,18 +480,14 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
                             color: AppColors.primary, size: 20),
                       ),
                       const SizedBox(width: 12),
-
-                      // Tên lớp
                       Expanded(
                         child: Text(name,
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: isChecked
-                                  ? FontWeight.w700
-                                  : FontWeight.w500,
+                                  ? FontWeight.w700 : FontWeight.w500,
                               color: isChecked
-                                  ? AppColors.textDark
-                                  : AppColors.textMedium,
+                                  ? AppColors.textDark : AppColors.textMedium,
                             )),
                       ),
                     ]),
@@ -594,8 +619,7 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
       initialTime: TimeOfDay.fromDateTime(initial),
     );
     if (time == null) return;
-    onPicked(DateTime(
-        date.year, date.month, date.day, time.hour, time.minute));
+    onPicked(DateTime(date.year, date.month, date.day, time.hour, time.minute));
   }
 
   String _formatDateTime(DateTime dt) {
@@ -632,8 +656,7 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
                     size: 14, color: AppColors.textHint),
                 const SizedBox(width: 6),
                 const Text('Học sinh có thể làm lại 1 lần sau lần đầu',
-                    style: TextStyle(fontSize: 12,
-                        color: AppColors.textHint)),
+                    style: TextStyle(fontSize: 12, color: AppColors.textHint)),
               ]),
             ),
         ],
@@ -659,6 +682,108 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
               style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600,
                   color: on ? AppColors.primary : AppColors.textMedium))),
         ),
+      ),
+    );
+  }
+
+  // ── MỚI: Card cài đặt đáp án ────────────────────────────────────────────
+  Widget _buildShowAnswerCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04),
+            blurRadius: 8, offset: const Offset(0, 2))],
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 40, height: 40,
+                decoration: BoxDecoration(
+                  color: _showAnswerAfterSubmit
+                      ? const Color(0xFFECFDF5)
+                      : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  _showAnswerAfterSubmit
+                      ? Icons.visibility_rounded
+                      : Icons.visibility_off_rounded,
+                  color: _showAnswerAfterSubmit
+                      ? const Color(0xFF10B981)
+                      : AppColors.textHint,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Cho xem đáp án sau khi nộp',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textDark,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _showAnswerAfterSubmit
+                          ? 'Học sinh xem được đáp án & điểm từng câu'
+                          : 'Học sinh chỉ thấy điểm tổng',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: _showAnswerAfterSubmit
+                            ? const Color(0xFF10B981)
+                            : AppColors.textMedium,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Switch(
+                value: _showAnswerAfterSubmit,
+                onChanged: (v) => setState(() => _showAnswerAfterSubmit = v),
+                activeColor: const Color(0xFF10B981),
+              ),
+            ],
+          ),
+
+          // Hint box khi bật
+          if (_showAnswerAfterSubmit) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFECFDF5),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: const [
+                  Icon(Icons.info_outline_rounded,
+                      size: 16, color: Color(0xFF10B981)),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Sau khi nộp bài, học sinh có thể xem lại từng câu hỏi, '
+                      'đáp án đúng và câu mình đã chọn.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF059669),
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

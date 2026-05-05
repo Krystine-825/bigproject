@@ -10,6 +10,8 @@
 const {setGlobalOptions} = require("firebase-functions");
 const {onRequest} = require("firebase-functions/https");
 const logger = require("firebase-functions/logger");
+//const {onDocumentCreated} = require("firebase-functions/v2/firestore");
+const {getMessaging} = require("firebase-admin/messaging");
 
 // For cost control, you can set the maximum number of containers that can be
 // running at the same time. This helps mitigate the impact of unexpected
@@ -22,8 +24,11 @@ const logger = require("firebase-functions/logger");
 // In the v1 API, each function can only serve one request per container, so
 // this will be the maximum concurrent request count.
 
-setGlobalOptions({ maxInstances: 100 });
+//setGlobalOptions({ maxInstances: 100 });
 // chỗ này quyết định được bao nhiêu người xài chức năng sinh đề, có thẻ xóa luôn dòng này để Firebase tự scale 
+/* thật ra nguyên lý của nó sẽ giống như là tạo tối đa 100 máy chủ ảo chạy song song. 
+Nếu có 101 giáo viên bấm tạo đề cùng một phần ngàn giây, người thứ 101 sẽ bị đưa vào hàng đợi cho đến khi 1 trong 100 người kia xong. 
+Cho nên cái số maxInstances mình bật thì số người dùng đợi 1 khoảng như nhau thôi, nên tối ưu nữa thì chỉ có đổi model khác :v*/
 
 // Create and deploy your first functions
 // https://firebase.google.com/docs/functions/get-started
@@ -47,9 +52,7 @@ const db      = getFirestore();
 const storage = getStorage();
 const openai  = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// ════════════════════════════════════════════════════════════════════════════════
 // Cloud Function: generateExamFromPdf
-// ════════════════════════════════════════════════════════════════════════════════
 exports.generateExamFromPdf = onCall(
   { timeoutSeconds: 300, memory: '512MiB' },
   async (request) => {
@@ -58,7 +61,7 @@ exports.generateExamFromPdf = onCall(
       storagePath, extractedText, fileName, config,
     } = request.data;
 
-    // ── Validate input ─────────────────────────────────────────────────────────
+    // Validate input
     if (!teacherId || !storagePath) {
       throw new HttpsError('invalid-argument', 'Thiếu tham số bắt buộc');
     }
@@ -95,19 +98,37 @@ exports.generateExamFromPdf = onCall(
       }
       const rawText = extractedText;
 
-      // ── Bước 2: Làm sạch text ────────────────────────────────────────────────
+      // làm sạch text
       const cleanedText = _cleanText(rawText);
 
-      // ── Bước 3: Validate nội dung phía backend (double-check) ────────────────
+      // Validate nội dung phía backend (double-check)
       const contentCheck = _validateContent(cleanedText);
       if (!contentCheck.valid) {
         throw new HttpsError('invalid-argument', contentCheck.reason);
       }
 
-      // ── Bước 4: Gọi OpenAI ───────────────────────────────────────────────────
-      const questions = await _callOpenAI(cleanedText, config);
+      // Cộng lượt trước khi gọi AI để khóa spam
+      await quotaRef.set({
+        date: today,
+        count: usageCount + 1,
+        updatedAt: FieldValue.serverTimestamp()
+      }, { merge: true });
 
-      // ── Bước 5: Lưu vào Firestore ────────────────────────────────────────────
+      let questions;
+      try {
+        // Gọi OpenAI (Bắt đầu chờ 30 - 60s)
+        questions = await _callOpenAI(cleanedText, config);
+      } catch (aiError) {
+        // nếu ai bị lỗi thì hoàn lại lượt lại cho người dùng
+        await quotaRef.set({
+          count: Math.max(0, usageCount), // Trả về số đếm cũ trước khi bấm
+          updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+        
+        throw aiError; // Ném lỗi ra để khối catch tổng bắt lấy
+      }
+
+      // Lưu vào Firestore
       const examData = {
         title:           _generateTitle(fileName),
         teacher_id:      teacherId, 
@@ -121,13 +142,6 @@ exports.generateExamFromPdf = onCall(
 
       const docRef = await db.collection('exams').add(examData);
 
-      
-      // cộng lượt sử dụng sau khi tạo đề 
-      await quotaRef.set({
-        date: today,
-        count: usageCount + 1,
-        updatedAt: FieldValue.serverTimestamp()
-      }, { merge: true });
 
       return {
         success: true,
@@ -159,7 +173,7 @@ async function _extractTextFromStorage(storagePath) {
     );
   }
 
-  const MAX_CHARS = 15000; // Khoảng 5-7 trang A4
+  const MAX_CHARS = 40000; // 
   if (text.length > MAX_CHARS) {
     throw new HttpsError('out-of-range', `File quá dài (${text.length} ký tự). Vui lòng tách nhỏ PDF và tải lên dưới ${MAX_CHARS} ký tự để AI xử lý tốt nhất.`);
   }
@@ -227,27 +241,55 @@ function _validateContent(text) {
 }
 */
 function _validateContent(text) {
-  // Loại bỏ khoảng trắng và xuống dòng để đếm ký tự
-  const cleanText = text.replace(/\s+/g, '');
+  // chuẩn hóa Unicode cho PDF 
+  // gộp các ký tự bị tách dấu (NFD) thành ký tự hoàn chỉnh (NFC) để Regex nhận diện chính xác
+  const normalizedText = text.normalize('NFC');
+  
+  // loại bỏ khoảng trắng và xuống dòng để tính toán tỷ lệ trên nội dung thực
+  const cleanText = normalizedText.replace(/\s+/g, '');
   const totalChars = cleanText.length;
 
+  // 1. Kiểm tra độ dài tối thiểu
   if (totalChars < 50) { 
     return { valid: false, reason: 'Nội dung PDF quá ngắn sau khi xử lý (dưới 50 ký tự).' };
   }
 
-  // Chỉ giữ lại chốt chặn Tiếng Việt (chặn file có > 5% tiếng Việt)
+  // chặn Tiếng Việt (chặn file có > 50% tiếng Việt)
   const viPattern = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/gi;
   const viCount   = (cleanText.match(viPattern) || []).length;
   const viRatio   = viCount / totalChars;
   
-  if (viRatio > 0.05) { 
+  if (viRatio > 0.5) { 
     return {
       valid: false,
       reason: `File chứa tiếng Việt (${(viRatio * 100).toFixed(1)}%). Vui lòng dùng tài liệu tiếng Anh.`,
     };
   }
 
-  // Đã bỏ qua kiểm tra engPattern (tỉ lệ tiếng Anh) vì đề thi thường có nhiều dấu ____ và ngoặc vuông []
+  // chặn Ký tự toán học / công thức phức tạp 
+  const mathPattern = /[∑∫∂√∞±×÷≤≥≠≈α-ωΑ-Ω²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉]/g;
+  const mathCount   = (cleanText.match(mathPattern) || []).length;
+  const mathRatio   = mathCount / totalChars;
+
+  if (mathRatio > 0.05) {
+    return {
+      valid: false,
+      reason: `File chứa quá nhiều ký tự toán học/công thức (${(mathRatio * 100).toFixed(1)}%). Chỉ chấp nhận tài liệu ngôn ngữ thuần túy.`,
+    };
+  }
+
+  // kiểm tra tỷ lệ tiếng Anh chuẩn (ASCII + Dấu câu)
+  // đã bao gồm các dấu gạch dưới ___ và ngoặc vuông [] thường dùng trong đề thi
+  const engPattern = /[a-zA-Z0-9.,!?;:'"()\[\]\-_]/g;
+  const engCount   = (cleanText.match(engPattern) || []).length;
+  const engRatio   = engCount / totalChars;
+
+  if (engRatio < 0.70) { 
+    return {
+      valid: false,
+      reason: 'Nội dung tiếng Anh quá ít hoặc file bị mã hóa lỗi. Vui lòng chọn tài liệu tiếng Anh chuẩn.',
+    };
+  }
 
   return { valid: true };
 }
@@ -259,62 +301,103 @@ async function _callOpenAI(text, config) {
     questionTypes = ['multiple_choice', 'fill_in', 'true_false'],
   } = config;
 
-  // CỐ ĐỊNH TỈ LỆ ĐỘ KHÓ (1 Đề có 3 phần: 40% Dễ, 40% TB, 20% Khó)
-  // Bạn có thể tùy chỉnh lại các con số 0.4 và 0.2 này nếu muốn
+  // 1 Đề có 3 phần: 40% Dễ, 40% TB, 20% Khó)
   const easyCount   = Math.round(questionCount * 0.4);
   const mediumCount = Math.round(questionCount * 0.4);
   const hardCount   = questionCount - easyCount - mediumCount;
 
   // Cắt text nếu quá dài (GPT-4o context limit)
-  const maxChars  = 12000;
-  const inputText = text.length > maxChars
-    ? text.slice(0, maxChars) + '\n\n[... nội dung đã được rút gọn ...]'
-    : text;
+  const maxChars = 40000; 
+  let inputText = text;
 
+  if (text.length > maxChars) {
+    // tránh cắt ngang từ/ngang câu
+    const snippet = text.slice(0, maxChars);
+    
+    // tìm vị trí kết thúc câu an toàn (dấu chấm, hỏi, than, xuống dòng)
+    const safeCutIndex = Math.max(
+      snippet.lastIndexOf('. '),
+      snippet.lastIndexOf('? '),
+      snippet.lastIndexOf('! '),
+      snippet.lastIndexOf('\n')
+    );
+
+    // nếu tìm thấy điểm cắt an toàn (gần cuối đoạn), thì cắt ở đó không thì đành cắt cứng.
+    const finalCut = safeCutIndex > (maxChars - 500) ? safeCutIndex + 1 : maxChars;
+    
+    inputText = text.slice(0, finalCut) + '\n\n[... phần còn lại của tài liệu đã được rút gọn để tối ưu AI ...]';
+    
+    logger.info(`[TỐI ƯU TEXT] File quá dài (${text.length} ký tự). Đã cắt an toàn tại ký tự thứ ${finalCut}.`);
+  }
+
+  // khởi tạo Prompt 1 lần duy nhất ở ngoài để tối ưu hiệu năng
   const typeInstructions = _buildTypeInstructions(questionTypes);
   const systemPrompt = _buildSystemPrompt(typeInstructions);
   const userPrompt   = _buildUserPrompt(
     inputText, easyCount, mediumCount, hardCount, questionTypes
   );
 
-  const response = await openai.chat.completions.create({
-    model:       'gpt-4o',
-    temperature: 0.7,
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user',   content: userPrompt   },
-    ],
-    response_format: { type: 'json_object' }, // đảm bảo trả về JSON
-  });
+  // retry: tối đa thử 3 lần
+  const MAX_RETRIES = 3;
+  
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      logger.info(`[OPENAI] Bắt đầu gọi API sinh đề (Lần thử: ${attempt}/${MAX_RETRIES})...`);
+      
+      const response = await openai.chat.completions.create({
+        model:       'gpt-4o',
+        temperature: 0.7,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user',   content: userPrompt   },
+        ],
+        response_format: { type: 'json_object' }, // đảm bảo trả về JSON
+      });
 
-  const raw  = response.choices[0].message.content;
+      const raw  = response.choices[0].message.content;
 
-  // Thống kê Token
-  const charCount = raw.length;
-  logger.info(`[THỐNG KÊ AI] Số ký tự AI sinh ra: ${charCount} ký tự.`);
+      // thống kê Token
+      const charCount = raw.length;
+      logger.info(`[THỐNG KÊ AI] Số ký tự AI sinh ra: ${charCount} ký tự.`);
 
-  if (response.usage) {
-    const promptTokens = response.usage.prompt_tokens;      
-    const completionTokens = response.usage.completion_tokens;
-    const totalTokens = response.usage.total_tokens;        
-    logger.info(`[THỐNG KÊ TOKEN] Đầu vào: ${promptTokens} | Đầu ra: ${completionTokens} | Tổng cộng: ${totalTokens}`);
+      if (response.usage) {
+        const promptTokens = response.usage.prompt_tokens;      
+        const completionTokens = response.usage.completion_tokens;
+        const totalTokens = response.usage.total_tokens;        
+        logger.info(`[THỐNG KÊ TOKEN] Đầu vào: ${promptTokens} | Đầu ra: ${completionTokens} | Tổng cộng: ${totalTokens}`);
+      }
+     
+      const parsed = JSON.parse(raw);
+
+      if (!parsed.questions || !Array.isArray(parsed.questions)) {
+        throw new Error('OpenAI trả về dữ liệu không đúng định dạng (Thiếu mảng questions).');
+      }
+
+      // sắp xếp câu hỏi từ Dễ -> Trung Bình -> Khó để tạo 3 phần rõ rệt
+      const diffOrder = { 'easy': 1, 'medium': 2, 'hard': 3 };
+      const sortedQuestions = parsed.questions.sort((a, b) => diffOrder[a.difficulty] - diffOrder[b.difficulty]);
+
+      // đánh số id từ 1 sau khi đã sắp xếp và TRẢ VỀ KẾT QUẢ THÀNH CÔNG
+      return sortedQuestions.map((q, i) => ({ ...q, id: i + 1 }));
+
+    } catch (error) {
+      logger.warn(`[OPENAI ERROR] Lỗi ở lần thử thứ ${attempt}: ${error.message}`);
+      
+      // nếu đã thử hết số lần cho phép thì ném lỗi ra ngoài cho hàm cha bắt (và hoàn trả lượt sinh đề cho user)
+      if (attempt === MAX_RETRIES) {
+        throw new Error(`Quá trình sinh đề thất bại sau ${MAX_RETRIES} lần thử: ${error.message}`);
+      }
+
+      // back off: tạm ghỉ trước khi thử lại (tránh bị rate limit)
+      // lần 1 lỗi->nghỉ 2 giây. lần 2 lỗi->nghỉ 4 giây.
+      const delayMs = attempt * 2000; 
+      logger.info(`[RETRY] Đang chờ ${delayMs}ms trước khi thử lại...`);
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
   }
- 
-  const parsed = JSON.parse(raw);
-
-  if (!parsed.questions || !Array.isArray(parsed.questions)) {
-    throw new Error('OpenAI trả về dữ liệu không đúng định dạng');
-  }
-
-  // THUẬT TOÁN MỚI: Sắp xếp câu hỏi từ Dễ -> Trung Bình -> Khó để tạo 3 phần rõ rệt
-  const diffOrder = { 'easy': 1, 'medium': 2, 'hard': 3 };
-  const sortedQuestions = parsed.questions.sort((a, b) => diffOrder[a.difficulty] - diffOrder[b.difficulty]);
-
-  // Đánh số id từ 1 sau khi đã sắp xếp
-  return sortedQuestions.map((q, i) => ({ ...q, id: i + 1 }));
 }
 
-// ─── Prompt hệ thống ──────────────────────────────────────────────────────────
+// prompt hệ thống
 function _buildSystemPrompt(typeInstructions) {
   return `You are an expert English language teacher creating exam questions from provided text.
 
@@ -348,7 +431,7 @@ ${typeInstructions}`;
 }
 
 
-// ─── Hướng dẫn theo từng loại câu hỏi ───────────────────────────────────────
+// hướng dẫn theo từng loại câu hỏi 
 function _buildTypeInstructions(types) {
   const instructions = [];
 
@@ -379,7 +462,7 @@ function _buildTypeInstructions(types) {
 }
 
 
-// ─── Prompt người dùng ───────────────────────────────────────────────────────
+// prompt người dùng
 function _buildUserPrompt(text, easyCount, mediumCount, hardCount, types) {
   const typesLabel = types.map(t => ({
     multiple_choice: 'multiple_choice',
@@ -403,7 +486,7 @@ CRITICAL INSTRUCTION: Your final JSON array MUST contain EXACTLY ${easyCount + m
 }
 
 
-// ─── Sinh tiêu đề đề thi từ tên file ─────────────────────────────────────────
+// sinh tiêu đề đề thi từ tên file
 function _generateTitle(fileName) {
   return fileName
     .replace(/\.pdf$/i, '')
@@ -412,3 +495,69 @@ function _generateTitle(fileName) {
     .trim()
     || 'English Exam';
 }
+
+// notification — onCall v2, Flutter gọi hàm này sau khi _write() ghi vào Firestore
+exports.sendPushOnNotification = onCall(
+  { region: "asia-southeast1" },
+  async (request) => {
+    const { userId, title, body, type, data: extra = {} } = request.data;
+    if (!userId || !title || !body) {
+      throw new HttpsError("invalid-argument", "Thiếu tham số bắt buộc");
+    }
+
+    // Lấy FCM token(s) của user — tái sử dụng db đã có sẵn
+    const userDoc = await db.collection("users").doc(userId).get();
+    if (!userDoc.exists) return;
+
+    const tokens = userDoc.data()?.fcm_tokens ?? [];
+    if (tokens.length === 0) return; // user đã tắt thông báo
+
+    // Chuyển tất cả extra thành string (FCM yêu cầu)
+    const dataPayload = { type };
+    for (const [k, v] of Object.entries(extra)) {
+      dataPayload[k] = String(v);
+    }
+
+    const message = {
+      tokens,
+      notification: { title, body },
+      data: dataPayload,
+      android: {
+        notification: {
+          channelId: "edu_exam_default",
+          priority: "high",
+          sound: "default",
+        },
+      },
+      apns: {
+        payload: {
+          aps: { sound: "default", badge: 1 },
+        },
+      },
+    };
+
+    const response = await getMessaging().sendEachForMulticast(message);
+    logger.info(`[FCM] Gửi tới ${tokens.length} thiết bị — thành công: ${response.successCount}, thất bại: ${response.failureCount}`);
+
+    // Dọn token hết hạn
+    const expiredTokens = [];
+    response.responses.forEach((res, i) => {
+      if (
+        !res.success &&
+        (res.error?.code === "messaging/invalid-registration-token" ||
+          res.error?.code === "messaging/registration-token-not-registered")
+      ) {
+        expiredTokens.push(tokens[i]);
+      }
+    });
+
+    if (expiredTokens.length > 0) {
+      await db.collection("users").doc(userId).update({
+        fcm_tokens: FieldValue.arrayRemove(...expiredTokens),
+      });
+      logger.info(`[FCM] Đã xoá ${expiredTokens.length} token hết hạn của user ${userId}`);
+    }
+
+    return { success: true, sent: response.successCount };
+  }
+);

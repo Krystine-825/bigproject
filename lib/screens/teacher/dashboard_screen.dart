@@ -8,6 +8,8 @@ import '../../controllers/class_controller.dart';
 import '../../controllers/exam_controller.dart';
 import '../../data/models/class_model.dart';
 import '../../data/models/exam_model.dart';
+import '../../widgets/common/notification_badge.dart';
+import '../notification/notification_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -20,7 +22,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final int _selectedNav = 0;
   String _teacherName = '';
   final _classController = ClassController();
-  final _examController  = ExamController();
+  final _examController = ExamController();
 
   @override
   void initState() {
@@ -124,24 +126,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ],
           ),
           const Spacer(),
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: AppColors.white,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: const Icon(
-              Icons.notifications_outlined,
-              color: AppColors.textLight,
-              size: 22,
+          NotificationBadge(
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const NotificationScreen()),
             ),
           ),
         ],
@@ -158,15 +146,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
           return StreamBuilder<List<ExamModel>>(
             stream: _examController.streamMyExams(),
             builder: (context, examSnap) {
-              final classes     = classSnap.data ?? [];
-              final classCount  = classes.length;
-              final studentCount = classes.fold<int>(0, (s, c) => s + c.studentCount);
-              final examCount   = examSnap.data?.length ?? 0;
+              final classes = classSnap.data ?? [];
+              final classCount = classes.length;
+              final studentCount = classes.fold<int>(
+                0,
+                (s, c) => s + c.studentCount,
+              );
+              final examCount = examSnap.data?.length ?? 0;
 
               final stats = [
-                {'icon': Icons.school_rounded,      'label': 'Lớp học',  'value': '$classCount'},
-                {'icon': Icons.group_rounded,        'label': 'Học sinh', 'value': '$studentCount'},
-                {'icon': Icons.description_rounded,  'label': 'Đề thi',   'value': '$examCount'},
+                {
+                  'icon': Icons.school_rounded,
+                  'label': 'Lớp học',
+                  'value': '$classCount',
+                },
+                {
+                  'icon': Icons.group_rounded,
+                  'label': 'Học sinh',
+                  'value': '$studentCount',
+                },
+                {
+                  'icon': Icons.description_rounded,
+                  'label': 'Đề thi',
+                  'value': '$examCount',
+                },
               ];
 
               return Row(
@@ -190,17 +193,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                       child: Column(
                         children: [
-                          Icon(stat['icon'] as IconData, color: AppColors.primary, size: 24,),
+                          Icon(
+                            stat['icon'] as IconData,
+                            color: AppColors.primary,
+                            size: 24,
+                          ),
                           const SizedBox(height: 8),
-                          Text(stat['label'] as String,
-                              style: const TextStyle(fontSize: 11, color: AppColors.textLight)),
+                          Text(
+                            stat['label'] as String,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppColors.textLight,
+                            ),
+                          ),
                           const SizedBox(height: 4),
                           Text(
                             stat['value'] as String,
                             style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 20,
-                                color: AppColors.textDark),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 20,
+                              color: AppColors.textDark,
+                            ),
                           ),
                         ],
                       ),
@@ -283,7 +296,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       context,
                       MaterialPageRoute(
                         builder: (_) => ClassDetailScreen(
-                          classId:   cls.id,
+                          classId: cls.id,
                           className: cls.name,
                           classCode: cls.code,
                         ),
@@ -347,7 +360,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
         _RecentActivitiesWidget(
           classController: _classController,
-          examController:  _examController,
+          examController: _examController,
         ),
       ],
     );
@@ -356,7 +369,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
 class _RecentActivitiesWidget extends StatelessWidget {
   final ClassController classController;
-  final ExamController  examController;
+  final ExamController examController;
 
   const _RecentActivitiesWidget({
     required this.classController,
@@ -365,12 +378,12 @@ class _RecentActivitiesWidget extends StatelessWidget {
 
   String _timeAgo(String isoString) {
     try {
-      final dt   = DateTime.parse(isoString).toLocal();
+      final dt = DateTime.parse(isoString).toLocal();
       final diff = DateTime.now().difference(dt);
-      if (diff.inMinutes < 1)  return 'Vừa xong';
+      if (diff.inMinutes < 1) return 'Vừa xong';
       if (diff.inMinutes < 60) return '${diff.inMinutes} phút trước';
-      if (diff.inHours   < 24) return '${diff.inHours} giờ trước';
-      if (diff.inDays    < 7)  return '${diff.inDays} ngày trước';
+      if (diff.inHours < 24) return '${diff.inHours} giờ trước';
+      if (diff.inDays < 7) return '${diff.inDays} ngày trước';
       return '${dt.day}/${dt.month}/${dt.year}';
     } catch (_) {
       return '';
@@ -393,21 +406,21 @@ class _RecentActivitiesWidget extends StatelessWidget {
                     ? exam.assignments.last
                     : null;
                 activities.add({
-                  'icon':      Icons.send_rounded,
-                  'bgColor':   const Color(0xFFEFF6FF),
+                  'icon': Icons.send_rounded,
+                  'bgColor': const Color(0xFFEFF6FF),
                   'iconColor': const Color(0xFF007BFF),
-                  'title':     'Đề thi đã được giao',
-                  'subtitle':  '${exam.name} → ${lastAssign?.className ?? ''}',
-                  'sortKey':   lastAssign?.assignedAt ?? exam.createdAt,
+                  'title': 'Đề thi đã được giao',
+                  'subtitle': '${exam.name} → ${lastAssign?.className ?? ''}',
+                  'sortKey': lastAssign?.assignedAt ?? exam.createdAt,
                 });
               } else {
                 activities.add({
-                  'icon':      Icons.note_add_rounded,
-                  'bgColor':   const Color(0xFFFFF7ED),
+                  'icon': Icons.note_add_rounded,
+                  'bgColor': const Color(0xFFFFF7ED),
                   'iconColor': const Color(0xFFF97316),
-                  'title':     'Đề thi mới được tạo',
-                  'subtitle':  exam.name,
-                  'sortKey':   exam.createdAt,
+                  'title': 'Đề thi mới được tạo',
+                  'subtitle': exam.name,
+                  'sortKey': exam.createdAt,
                 });
               }
             }
@@ -415,20 +428,22 @@ class _RecentActivitiesWidget extends StatelessWidget {
             for (final cls in (classSnap.data ?? [])) {
               if (cls.studentCount > 0) {
                 activities.add({
-                  'icon':      Icons.group_add_rounded,
-                  'bgColor':   const Color(0xFFF0FDF4),
+                  'icon': Icons.group_add_rounded,
+                  'bgColor': const Color(0xFFF0FDF4),
                   'iconColor': const Color(0xFF22C55E),
-                  'title':     'Lớp đang có học sinh',
-                  'subtitle':  '${cls.name} · ${cls.studentCount} học sinh',
-                  'sortKey':   '', 
+                  'title': 'Lớp đang có học sinh',
+                  'subtitle': '${cls.name} · ${cls.studentCount} học sinh',
+                  'sortKey': '',
                 });
               }
             }
 
-            activities.sort((a, b) =>
-                (b['sortKey'] as String).compareTo(a['sortKey'] as String));
+            activities.sort(
+              (a, b) =>
+                  (b['sortKey'] as String).compareTo(a['sortKey'] as String),
+            );
 
-            final display = activities.take(5).toList();
+            final display = activities.take(4).toList();
 
             if (display.isEmpty) {
               return Padding(
@@ -442,13 +457,18 @@ class _RecentActivitiesWidget extends StatelessWidget {
                   child: const Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.inbox_rounded,
-                          color: AppColors.textHint, size: 20),
+                      Icon(
+                        Icons.inbox_rounded,
+                        color: AppColors.textHint,
+                        size: 20,
+                      ),
                       SizedBox(width: 8),
                       Text(
                         'Chưa có hoạt động nào',
                         style: TextStyle(
-                            color: AppColors.textHint, fontSize: 13),
+                          color: AppColors.textHint,
+                          fontSize: 13,
+                        ),
                       ),
                     ],
                   ),
@@ -519,7 +539,9 @@ class _RecentActivitiesWidget extends StatelessWidget {
                 Text(
                   a['subtitle'] as String,
                   style: const TextStyle(
-                      fontSize: 12, color: AppColors.textLight),
+                    fontSize: 12,
+                    color: AppColors.textLight,
+                  ),
                 ),
               ],
             ),

@@ -29,7 +29,8 @@ class AppNavigator {
   static void _goToHome(BuildContext context) {
     Navigator.pushAndRemoveUntil(
       context,
-      MaterialPageRoute(builder: (_) => const StudentHomeScreen()),
+      MaterialPageRoute(builder: (_) => const StudentHomeScreen(),
+       settings: const RouteSettings(name: '/student/home')),
       (route) => route.isFirst,
     );
   }
@@ -50,12 +51,12 @@ class AppNavigator {
 
    static void _goToProfile(BuildContext context) {
     final currentRoute = ModalRoute.of(context)?.settings.name;
-    if (currentRoute != '/profile') {
+    if (currentRoute != '/student/profile') {
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (_) => const UserProfileScreen(),
-          settings: const RouteSettings(name: '/profile'),
+          settings: const RouteSettings(name: '/student/profile'),
         ),
       );
     }

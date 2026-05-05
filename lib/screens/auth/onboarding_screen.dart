@@ -81,7 +81,7 @@ class OnboardingScreen extends StatelessWidget {
       child: Column(
         children: [
           Text(
-            'Chinh phục mọi kỳ thi',
+            'Nâng tầm tri thức',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 28,
@@ -92,7 +92,7 @@ class OnboardingScreen extends StatelessWidget {
           ),
           SizedBox(height: 12),
           Text(
-            'Hệ thống ôn thi thông minh giúp bạn đạt kết quả cao nhất trong mọi kỳ kiểm tra với lộ trình cá nhân hóa.',
+            'Học tập thông minh hơn mỗi ngày.',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 15,
@@ -121,7 +121,7 @@ class OnboardingScreen extends StatelessWidget {
               label: const Text(
                 'Bắt đầu ngay',
                 style:
-                    TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+                TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
@@ -142,7 +142,7 @@ class OnboardingScreen extends StatelessWidget {
               const Text(
                 'Bạn đã có tài khoản? ',
                 style:
-                    TextStyle(color: AppColors.textHint, fontSize: 14),
+                TextStyle(color: AppColors.textHint, fontSize: 14),
               ),
               GestureDetector(
                 onTap: () => Navigator.push(

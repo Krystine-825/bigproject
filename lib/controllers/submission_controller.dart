@@ -1,21 +1,27 @@
+
+
 import '../data/models/submission_model.dart';
 import '../data/models/question_model.dart';
 import '../data/services/auth_service.dart';
 import '../data/services/firestore_service.dart';
+import 'notification_controller.dart'; 
 
 class SubmissionController {
-  final auth = AuthService();
+  final auth      = AuthService();
   final firestore = FireStoreService();
+  final _notif    = NotificationController(); 
 
   String get _myUid => auth.currentUid ?? '';
 
-  /// Nộp bài
+  // Nộp bài 
+
   Future<SubmissionModel> submitExam({
     required String examId,
     required String classId,
     required List<QuestionModel> questions,
     required Map<int, String> studentAnswers,
     required int durationSeconds,
+    String examName = '', 
   }) async {
     if (_myUid.isEmpty) throw Exception('Chưa đăng nhập');
 
@@ -47,10 +53,111 @@ class SubmissionController {
 
     final docRef =
         await firestore.addDocument('submissions', submission.toJson());
-    return SubmissionModel.fromJson(submission.toJson(), id: docRef.id);
+    final saved =
+        SubmissionModel.fromJson(submission.toJson(), id: docRef.id);
+
+    // Gửi thông báo bất đồng bộ — không chặn trả về kết quả cho user
+    _sendNotificationsAfterSubmit(
+      saved: saved,
+      examId: examId,
+      classId: classId,
+      examName: examName,
+      score: saved.score,
+    );
+
+    return saved;
   }
 
-  /// Kiểm tra học sinh đã nộp chưa (1 đề + 1 lớp)
+  // gửi tất cả thông báo sau khi nộp bài
+  Future<void> _sendNotificationsAfterSubmit({
+    required SubmissionModel saved,
+    required String examId,
+    required String classId,
+    required String examName,
+    required double score,
+  }) async {
+    try {
+      // Lấy tên bài thi nếu không được truyền vào
+      String resolvedExamName = examName;
+      String teacherId = '';
+
+      final examDoc = await firestore.getDocument('exams', examId);
+      if (examDoc.exists && examDoc.data() != null) {
+        final d = examDoc.data()!;
+        if (resolvedExamName.isEmpty) {
+          resolvedExamName = (d['title'] ?? d['name'] ?? 'Bài kiểm tra') as String;
+        }
+        teacherId = (d['teacher_id'] as String?) ?? '';
+      }
+
+      // Lấy tên học sinh
+      String studentName = '';
+      final userDoc = await firestore.getDocument('users', _myUid);
+      if (userDoc.exists && userDoc.data() != null) {
+        studentName = (userDoc.data()!['name'] as String?) ?? '';
+      }
+
+      // Đếm số bài đã nộp trong lớp
+      final subSnap = await firestore.queryWhere(
+        'submissions',
+        field: 'exam_id',
+        isEqualTo: examId,
+      );
+      final submittedCount =
+          subSnap.docs.where((d) => d.data()['class_id'] == classId).length;
+
+      // Lấy tổng số học sinh trong lớp
+      final memberSnap = await firestore.queryWhere(
+        'class_members',
+        field: 'class_id',
+        isEqualTo: classId,
+      );
+      final totalCount =
+          memberSnap.docs.where((d) => d.data()['status'] == 'active').length;
+
+      // HS: xác nhận nộp bài
+      await _notif.notifySubmissionSuccess(
+        studentId: _myUid,
+        examName: resolvedExamName,
+        examId: examId,
+        classId: classId,
+        score: score,
+      );
+
+      if (teacherId.isNotEmpty) {
+        // GV: có bài nộp mới
+        await _notif.notifyTeacherNewSubmission(
+          teacherId: teacherId,
+          studentName: studentName.isNotEmpty ? studentName : 'Học sinh',
+          examName: resolvedExamName,
+          examId: examId,
+          classId: classId,
+          submittedCount: submittedCount,
+          totalCount: totalCount,
+        );
+
+        // GV: cột mốc 100% (submittedCount đã bao gồm bài vừa nộp)
+        if (totalCount > 0 && submittedCount >= totalCount) {
+          final classDoc = await firestore.getDocument('classes', classId);
+          final className =
+              (classDoc.data()?['name'] as String?) ?? 'Lớp học';
+          await _notif.notifyAllStudentsSubmitted(
+            teacherId: teacherId,
+            examName: resolvedExamName,
+            examId: examId,
+            classId: classId,
+            className: className,
+            totalCount: totalCount,
+          );
+        }
+      }
+    } catch (_) {
+      // Lỗi thông báo không làm fail luồng nộp bài
+    }
+  }
+
+ 
+
   Future<SubmissionModel?> getMySubmission(
       {required String examId, required String classId}) async {
     if (_myUid.isEmpty) return null;
@@ -72,13 +179,11 @@ class SubmissionController {
     }
   }
 
-  /// Stream map: examId → SubmissionModel? cho học sinh hiện tại trong 1 lớp
   Stream<Map<String, SubmissionModel>> streamMySubmissionsForClass(
       String classId) {
     if (_myUid.isEmpty) return Stream.value({});
     return firestore
-        .streamWhere('submissions',
-            field: 'student_id', isEqualTo: _myUid)
+        .streamWhere('submissions', field: 'student_id', isEqualTo: _myUid)
         .map((snap) {
       final map = <String, SubmissionModel>{};
       for (final d in snap.docs) {
@@ -92,8 +197,6 @@ class SubmissionController {
     });
   }
 
-  /// ✅ MỚI: Stream tất cả bài nộp của 1 đề trong 1 lớp (teacher side)
-  /// Dùng cho AssignmentResultScreen để hiện điểm từng học sinh
   Stream<List<SubmissionModel>> streamSubmissionsForExamAndClass({
     required String examId,
     required String classId,
@@ -106,7 +209,6 @@ class SubmissionController {
             .toList());
   }
 
-  /// Stats cho home screen
   Future<Map<String, int>> getStudentStats() async {
     if (_myUid.isEmpty) return {'pending': 0, 'newToday': 0, 'done': 0};
     try {
@@ -125,7 +227,7 @@ class SubmissionController {
   bool _isCorrect(QuestionModel q, String chosen) {
     if (chosen.isEmpty) return false;
     final correctAnswer = q.answer.trim().toLowerCase();
-    final studentAnswer = chosen.trim().toLowerCase();
+    final studentAnswer  = chosen.trim().toLowerCase();
     switch (q.type) {
       case 'multiple_choice':
       case 'true_false':

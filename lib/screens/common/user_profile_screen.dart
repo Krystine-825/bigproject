@@ -5,6 +5,7 @@ import '../../controllers/profile_controller.dart';
 import '../../data/models/user_model.dart';
 import '../../widgets/common/custom_button_nav.dart';
 import '../../widgets/common/custom_button_nav_student.dart';
+import '../../data/services/fcm_service.dart'; 
 import 'personal_info_screen.dart';
 import 'change_password_screen.dart';
 
@@ -17,76 +18,116 @@ class UserProfileScreen extends StatefulWidget {
 
 class _UserProfileScreenState extends State<UserProfileScreen> {
   final profile = ProfileController();
-  final auth = AuthController();
+  final auth    = AuthController();
+  final fcm    = FcmService();
+
+
+  static UserModel? _cachedUser;
+  static Map<String, dynamic> _cachedStats = {};
+  static bool _cachedNotif = false;
 
   UserModel? _user;
   Map<String, dynamic> stats = {};
-  bool isLoading = true;
-  bool notification = true;
+  bool _statsLoading = true;
+  bool notification  = false;
 
   @override
   void initState() {
     super.initState();
+  
+    if (_cachedUser != null) {
+      _user         = _cachedUser;
+      stats         = _cachedStats;
+      notification  = _cachedNotif;
+      _statsLoading = _cachedStats.isEmpty;
+    }
+
     _loadData();
   }
 
   Future<void> _loadData() async {
     final user = await profile.getCurrentUser();
-    if (user == null) {
-      if (mounted) setState(() => isLoading = false);
-      return;
-    }
+    if (user == null) return;
 
-    Map<String, dynamic> s;
-    if (user.isTeacher) {
-      final raw = await profile.getTeacherStats();
-      s = {
-        'val1': '${raw['classes']}',
-        'lbl1': 'Lớp học',
-        'val2': '${raw['students']}',
-        'lbl2': 'Học sinh',
-        'val3': '${raw['exams']}',
-        'lbl3': 'Đề thi',
-      };
-    } else {
-      final raw = await profile.getStudentStats();
-      s = {
-        'val1': '${raw['classes']}',
-        'lbl1': 'Lớp học',
-        'val2': '${raw['exams']}',
-        'lbl2': 'Đã nộp',
-        'val3': '${raw['avgScore']}',
-        'lbl3': 'Điểm TB',
-      };
+    // Cập nhật user ngay nếu chưa có trong cache
+    if (_cachedUser == null && mounted) {
+      setState(() => _user = user);
     }
+    _cachedUser = user;
+
+    // Tải song song: thông báo + stats
+    final results = await Future.wait([
+      fcm.hasToken(),
+      _fetchStats(user),
+    ]);
+
+    final hasNotif = results[0] as bool;
+    final s        = results[1] as Map<String, dynamic>;
+
+    // Lưu vào cache
+    _cachedStats = s;
+    _cachedNotif = hasNotif;
 
     if (mounted) {
       setState(() {
-        _user = user;
-        stats = s;
-        isLoading = false;
+        _user         = user;
+        stats         = s;
+        notification  = hasNotif;
+        _statsLoading = false;
       });
     }
   }
 
-  void _refresh() => _loadData();
+  Future<Map<String, dynamic>> _fetchStats(UserModel user) async {
+    if (user.isTeacher) {
+      final raw = await profile.getTeacherStats();
+      return {
+        'val1': '${raw['classes']}', 'lbl1': 'Lớp học',
+        'val2': '${raw['students']}', 'lbl2': 'Học sinh',
+        'val3': '${raw['exams']}',   'lbl3': 'Đề thi',
+      };
+    } else {
+      final raw = await profile.getStudentStats();
+      return {
+        'val1': '${raw['classes']}',  'lbl1': 'Lớp học',
+        'val2': '${raw['exams']}',    'lbl2': 'Đã nộp',
+        'val3': '${raw['avgScore']}', 'lbl3': 'Điểm TB',
+      };
+    }
+  }
+
+  void _refresh() {
+    // Khi người dùng chủ động refresh: xóa cache để thấy skeleton
+    _cachedStats = {};
+    _statsLoading = true;
+    _loadData();
+  }
+
+  // Xử lý bật/tắt thông báo
+  Future<void> _onToggleNotification(bool value) async {
+    setState(() => notification = value);
+
+    if (value) {
+      final granted = await fcm.requestPermissionAndSaveToken();
+      if (!granted && mounted) {
+        // Hệ thống từ chối quyền → đổi Switch lại
+        setState(() => notification = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+                'Vui lòng cấp quyền thông báo trong Cài đặt điện thoại.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } else {
+      await fcm.removeToken();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (isLoading) {
-      return const Scaffold(
-        backgroundColor: Color(0xFFF8FAFC),
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-    if (_user == null) {
-      return const Scaffold(
-        backgroundColor: Color(0xFFF8FAFC),
-        body: Center(child: Text('Không tải được thông tin.')),
-      );
-    }
-
-    final isTeacher = _user!.isTeacher;
+    final isTeacher = _user?.isTeacher ?? true;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -95,10 +136,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           padding: const EdgeInsets.only(bottom: 24),
           child: Column(
             children: [
-               header(),
+              header(),
               statsCard(),
               const SizedBox(height: 24),
-              menuCard(),
+              if (_user != null) menuCard(),
             ],
           ),
         ),
@@ -109,13 +150,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     );
   }
 
- 
   Widget header() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
       child: Column(
         children: [
-          // Avatar với gradient ring
           Container(
             width: 132,
             height: 132,
@@ -141,30 +180,50 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          Text(
-            _user!.name,
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF0F172A),
-            ),
-          ),
+          // Hiện tên ngay khi có, không thì placeholder nhạt
+          _user != null
+              ? Text(
+                  _user!.name,
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF0F172A),
+                  ),
+                )
+              : Container(
+                  width: 140,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE2E8F0),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
           const SizedBox(height: 4),
-          Text(
-            _user!.email,
-            style: const TextStyle(fontSize: 14, color: Color(0xFF64748B)),
-          ),
+          _user != null
+              ? Text(
+                  _user!.email,
+                  style: const TextStyle(fontSize: 14, color: Color(0xFF64748B)),
+                )
+              : Container(
+                  width: 180,
+                  height: 14,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE2E8F0),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
           const SizedBox(height: 12),
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
             decoration: BoxDecoration(
               color: const Color(0xFFEFF6FF),
               borderRadius: BorderRadius.circular(999),
               border: Border.all(color: const Color(0xFFBFDBFE)),
             ),
             child: Text(
-              _user!.isTeacher ? 'GIÁO VIÊN' : 'HỌC SINH',
+              _user == null
+                  ? '...'
+                  : (_user!.isTeacher ? 'GIÁO VIÊN' : 'HỌC SINH'),
               style: const TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
@@ -178,7 +237,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     );
   }
 
-  
   Widget statsCard() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -196,16 +254,41 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             ),
           ],
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            statItem(stats['val1'] ?? '0', stats['lbl1'] ?? ''),
-            Container(width: 1, height: 40, color: const Color(0xFFE2E8F0)),
-            statItem(stats['val2'] ?? '0', stats['lbl2'] ?? ''),
-            Container(width: 1, height: 40, color: const Color(0xFFE2E8F0)),
-            statItem(stats['val3'] ?? '0', stats['lbl3'] ?? ''),
-          ],
-        ),
+        child: _statsLoading
+            ? Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: List.generate(3, (i) => Expanded(
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 48, height: 22,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE2E8F0),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Container(
+                        width: 40, height: 10,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE2E8F0),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ],
+                  ),
+                )),
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  statItem(stats['val1'] ?? '0', stats['lbl1'] ?? ''),
+                  Container(width: 1, height: 40, color: const Color(0xFFE2E8F0)),
+                  statItem(stats['val2'] ?? '0', stats['lbl2'] ?? ''),
+                  Container(width: 1, height: 40, color: const Color(0xFFE2E8F0)),
+                  statItem(stats['val3'] ?? '0', stats['lbl3'] ?? ''),
+                ],
+              ),
       ),
     );
   }
@@ -237,7 +320,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     );
   }
 
-  
   Widget menuCard() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -275,6 +357,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               },
             ),
             _divider(),
+            //Switch gọi _onToggleNotification thay vì setState trực tiếp
             menuItem(
               icon: Icons.notifications_rounded,
               iconBg: const Color(0xFFEFF6FF),
@@ -282,7 +365,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               title: 'Thông báo',
               trailing: Switch(
                 value: notification,
-                onChanged: (v) => setState(() => notification = v),
+                onChanged: _onToggleNotification,
                 activeColor: AppColors.primary,
                 materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
@@ -381,13 +464,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         child: Divider(height: 1, color: Color(0xFFF8FAFC)),
       );
 
-  
   void confirmLogout() {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text('Đăng xuất',
             style: TextStyle(fontWeight: FontWeight.bold)),
         content: const Text('Bạn có chắc muốn đăng xuất không?'),
@@ -400,6 +481,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           TextButton(
             onPressed: () async {
               Navigator.pop(ctx);
+              // Xoá token trước khi đăng xuất
+              await fcm.removeToken();
               await auth.signOut();
               if (mounted) {
                 Navigator.pushNamedAndRemoveUntil(

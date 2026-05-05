@@ -8,6 +8,7 @@ class ExamAssignment {
   final DateTime closeAt;
   final int maxAttempts;
   final String assignedAt;
+  final bool showAnswerAfterSubmit; // ← MỚI
 
   const ExamAssignment({
     required this.classId,
@@ -17,6 +18,7 @@ class ExamAssignment {
     required this.closeAt,
     required this.maxAttempts,
     required this.assignedAt,
+    this.showAnswerAfterSubmit = false, // ← MỚI
   });
 
   factory ExamAssignment.fromJson(Map<String, dynamic> json) {
@@ -39,6 +41,11 @@ class ExamAssignment {
               1,
       assignedAt:
           (json['assignedAt'] ?? json['assigned_at'] ?? '') as String,
+      // ← MỚI: đọc cả hai key camelCase lẫn snake_case
+      showAnswerAfterSubmit:
+          (json['showAnswerAfterSubmit'] ??
+                  json['show_answer_after_submit'] ??
+                  false) as bool,
     );
   }
 
@@ -50,6 +57,7 @@ class ExamAssignment {
         'closeAt': closeAt.toIso8601String(),
         'maxAttempts': maxAttempts,
         'assignedAt': assignedAt,
+        'showAnswerAfterSubmit': showAnswerAfterSubmit, // ← MỚI
       };
 }
 
