@@ -10,61 +10,33 @@
 const {setGlobalOptions} = require("firebase-functions");
 const {onRequest} = require("firebase-functions/https");
 const logger = require("firebase-functions/logger");
-
-// For cost control, you can set the maximum number of containers that can be
-// running at the same time. This helps mitigate the impact of unexpected
-// traffic spikes by instead downgrading performance. This limit is a
-// per-function limit. You can override the limit for each function using the
-// `maxInstances` option in the function's options, e.g.
-// `onRequest({ maxInstances: 5 }, (req, res) => { ... })`.
-// NOTE: setGlobalOptions does not apply to functions using the v1 API. V1
-// functions should each use functions.runWith({ maxInstances: 10 }) instead.
-// In the v1 API, each function can only serve one request per container, so
-// this will be the maximum concurrent request count.
-
-//setGlobalOptions({ maxInstances: 100 });
-// chỗ này quyết định được bao nhiêu người xài chức năng sinh đề, có thẻ xóa luôn dòng này để Firebase tự scale 
-/* thật ra nguyên lý của nó sẽ giống như là tạo tối đa 100 máy chủ ảo chạy song song. 
-Nếu có 101 giáo viên bấm tạo đề cùng một phần ngàn giây, người thứ 101 sẽ bị đưa vào hàng đợi cho đến khi 1 trong 100 người kia xong. 
-Cho nên cái số maxInstances mình bật thì số người dùng đợi 1 khoảng như nhau thôi, nên tối ưu nữa thì chỉ có đổi model khác :v*/
-
-// Create and deploy your first functions
-// https://firebase.google.com/docs/functions/get-started
-
-// exports.helloWorld = onRequest((request, response) => {
-//   logger.info("Hello logs!", {structuredData: true});
-//   response.send("Hello from Firebase!");
-// });
-
+const {getMessaging} = require("firebase-admin/messaging");
 
 require("dotenv").config(); 
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { initializeApp }     = require('firebase-admin/app');
-const { getFirestore, FieldValue } = require('firebase-admin/firestore'); // Đã thêm FieldValue để lưu thời gian
-const { getStorage }        = require('firebase-admin/storage');
+const { getFirestore, FieldValue } = require('firebase-admin/firestore'); 
 const OpenAI                = require('openai');
 
 initializeApp();
 
 const db      = getFirestore();
-const storage = getStorage();
 const openai  = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // Cloud Function: generateExamFromPdf
 exports.generateExamFromPdf = onCall(
   { timeoutSeconds: 300, memory: '512MiB' },
   async (request) => {
+    // CHỈ NHẬN TEXT TỪ CLIENT - KHÔNG NHẬN FILE PDF NỮA
     const {
-      teacherId, pdfUrl,
-      storagePath, extractedText, fileName, config,
+      teacherId, extractedText, fileName, config,
     } = request.data;
 
     // Validate input
-    if (!teacherId || !storagePath) {
-      throw new HttpsError('invalid-argument', 'Thiếu tham số bắt buộc');
+    if (!teacherId || !extractedText) {
+      throw new HttpsError('invalid-argument', 'Thiếu tham số bắt buộc. Cần có teacherId và extractedText.');
     }
 
-    
     //GIỚI HẠN 2 ĐỀ / NGÀY
     const MAX_EXAMS_PER_DAY = 2;
     const today = new Date().toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
@@ -87,14 +59,18 @@ exports.generateExamFromPdf = onCall(
     }
 
     try {
-      // Đã xóa cơ chế fallback parse PDF vì backend không còn thư viện pdf-parse
-      if (!extractedText || extractedText.trim().length < 100) {
+      if (extractedText.trim().length < 100) {
         throw new HttpsError(
           'invalid-argument',
           'Nội dung văn bản trống. Vui lòng đảm bảo file PDF có thể đọc được chữ.'
         );
       }
       const rawText = extractedText;
+
+      const MAX_CHARS = 40000;
+      if (rawText.length > MAX_CHARS) {
+        throw new HttpsError('out-of-range', `File quá dài (${rawText.length} ký tự). Vui lòng tách nhỏ PDF và tải lên dưới ${MAX_CHARS} ký tự để AI xử lý tốt nhất.`);
+      }
 
       // làm sạch text
       const cleanedText = _cleanText(rawText);
@@ -131,7 +107,6 @@ exports.generateExamFromPdf = onCall(
         title:           _generateTitle(fileName),
         teacher_id:      teacherId, 
         source_pdf_name: fileName,
-        storage_path:    storagePath,
         questions:       questions,
         status:          'draft',
         question_count:  questions.length,
@@ -139,7 +114,6 @@ exports.generateExamFromPdf = onCall(
       };
 
       const docRef = await db.collection('exams').add(examData);
-
 
       return {
         success: true,
@@ -155,30 +129,6 @@ exports.generateExamFromPdf = onCall(
 );
 
 
-
-async function _extractTextFromStorage(storagePath) {
-  const bucket = storage.bucket();
-  const file   = bucket.file(storagePath);
-  const [buffer] = await file.download();
-
-  const parsed = await pdfParse(buffer);
-  const text   = parsed.text;
-
-  if (!text || text.trim().length < 100) {
-    throw new HttpsError(
-      'invalid-argument',
-      'PDF không đọc được text. Có thể là file scan ảnh.'
-    );
-  }
-
-  const MAX_CHARS = 40000; // 
-  if (text.length > MAX_CHARS) {
-    throw new HttpsError('out-of-range', `File quá dài (${text.length} ký tự). Vui lòng tách nhỏ PDF và tải lên dưới ${MAX_CHARS} ký tự để AI xử lý tốt nhất.`);
-  }
-
-  return text; 
-}
-
 function _cleanText(raw) {
   return raw
     .replace(/\r\n/g, '\n')         // chuẩn hoá xuống dòng
@@ -189,55 +139,6 @@ function _cleanText(raw) {
     .trim();
 }
 
-/*
-function _validateContent(text) {
-  // Loại bỏ khoảng trắng và xuống dòng để tính tỷ lệ chính xác (Chỉ đếm chữ và số)
-  const cleanText = text.replace(/\s+/g, '');
-  const totalChars = cleanText.length;
-
-  if (totalChars < 50) { 
-    return { valid: false, reason: 'Nội dung PDF quá ngắn sau khi xử lý.' };
-  }
-
-  // 1. Tối ưu Regex tiếng Việt (Đủ 134 ký tự có dấu)
-  const viPattern = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/gi;
-  const viCount   = (cleanText.match(viPattern) || []).length;
-  const viRatio   = viCount / totalChars;
-  
-  if (viRatio > 0.05) { 
-    return {
-      valid: false,
-      reason: `File chứa tiếng Việt (${(viRatio * 100).toFixed(1)}%). Vui lòng dùng tài liệu tiếng Anh.`,
-    };
-  }
-
-  // 2. Ký tự toán học / công thức
-  const mathPattern = /[∑∫∂√∞±×÷≤≥≠≈α-ωΑ-Ω²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉]/g;
-  const mathCount   = (cleanText.match(mathPattern) || []).length;
-  const mathRatio   = mathCount / totalChars;
-
-  if (mathRatio > 0.05) {
-    return {
-      valid: false,
-      reason: `File chứa quá nhiều ký tự toán học/công thức (${(mathRatio * 100).toFixed(1)}%). Chỉ chấp nhận tài liệu ngôn ngữ thuần túy.`,
-    };
-  }
-
-  // 3. Tỉ lệ ký tự ASCII (Tiếng Anh + Số + Dấu câu)
-  const engPattern = /[a-zA-Z0-9.,!?;:'"()\-]/g;
-  const engCount   = (cleanText.match(engPattern) || []).length;
-  const engRatio   = engCount / totalChars;
-
-  if (engRatio < 0.70) { 
-    return {
-      valid: false,
-      reason: 'Nội dung tiếng Anh quá ít hoặc file bị mã hóa lỗi. Vui lòng chọn tài liệu tiếng Anh chuẩn.',
-    };
-  }
-
-  return { valid: true };
-}
-*/
 function _validateContent(text) {
   // chuẩn hóa Unicode cho PDF 
   // gộp các ký tự bị tách dấu (NFD) thành ký tự hoàn chỉnh (NFC) để Regex nhận diện chính xác
@@ -334,6 +235,13 @@ async function _callOpenAI(text, config) {
   const userPrompt   = _buildUserPrompt(
     inputText, easyCount, mediumCount, hardCount, questionTypes
   );
+
+  // kiểm tra có model có đọc hết file được extracted không
+  logger.info(`[DEBUG INPUT] Tổng số ký tự nhận được từ Flutter: ${text.length}`);
+  logger.info(`[DEBUG INPUT] Số ký tự thực tế nhét vào Prompt gửi AI: ${inputText.length}`);
+  logger.info(`[DEBUG INPUT] 50 ký tự đầu: "${inputText.slice(0, 50)}..."`);
+  logger.info(`[DEBUG INPUT] 50 ký tự cuối: "...${inputText.slice(-50)}"`);
+
 
   // retry: tối đa thử 3 lần
   const MAX_RETRIES = 3;
@@ -493,3 +401,69 @@ function _generateTitle(fileName) {
     .trim()
     || 'English Exam';
 }
+
+// notification — onCall v2, Flutter gọi hàm này sau khi _write() ghi vào Firestore
+exports.sendPushOnNotification = onCall(
+  { region: "asia-southeast1" },
+  async (request) => {
+    const { userId, title, body, type, data: extra = {} } = request.data;
+    if (!userId || !title || !body) {
+      throw new HttpsError("invalid-argument", "Thiếu tham số bắt buộc");
+    }
+
+    // Lấy FCM token(s) của user — tái sử dụng db đã có sẵn
+    const userDoc = await db.collection("users").doc(userId).get();
+    if (!userDoc.exists) return;
+
+    const tokens = userDoc.data()?.fcm_tokens ?? [];
+    if (tokens.length === 0) return; // user đã tắt thông báo
+
+    // Chuyển tất cả extra thành string (FCM yêu cầu)
+    const dataPayload = { type };
+    for (const [k, v] of Object.entries(extra)) {
+      dataPayload[k] = String(v);
+    }
+
+    const message = {
+      tokens,
+      notification: { title, body },
+      data: dataPayload,
+      android: {
+        notification: {
+          channelId: "edu_exam_default",
+          priority: "high",
+          sound: "default",
+        },
+      },
+      apns: {
+        payload: {
+          aps: { sound: "default", badge: 1 },
+        },
+      },
+    };
+
+    const response = await getMessaging().sendEachForMulticast(message);
+    logger.info(`[FCM] Gửi tới ${tokens.length} thiết bị — thành công: ${response.successCount}, thất bại: ${response.failureCount}`);
+
+    // Dọn token hết hạn
+    const expiredTokens = [];
+    response.responses.forEach((res, i) => {
+      if (
+        !res.success &&
+        (res.error?.code === "messaging/invalid-registration-token" ||
+          res.error?.code === "messaging/registration-token-not-registered")
+      ) {
+        expiredTokens.push(tokens[i]);
+      }
+    });
+
+    if (expiredTokens.length > 0) {
+      await db.collection("users").doc(userId).update({
+        fcm_tokens: FieldValue.arrayRemove(...expiredTokens),
+      });
+      logger.info(`[FCM] Đã xoá ${expiredTokens.length} token hết hạn của user ${userId}`);
+    }
+
+    return { success: true, sent: response.successCount };
+  }
+);

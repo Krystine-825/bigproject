@@ -5,6 +5,7 @@ import '../../controllers/submission_controller.dart';
 import '../../data/models/exam_model.dart';
 import '../../data/models/submission_model.dart';
 import 'exam_take_screen.dart';
+import 'exam_review_screen.dart';
 
 class StudentClassDetailScreen extends StatefulWidget {
   final String classId;
@@ -28,7 +29,7 @@ class StudentClassDetailScreen extends StatefulWidget {
 class _StudentClassDetailScreenState extends State<StudentClassDetailScreen> {
   final examController = ExamController();
   final submissionController = SubmissionController();
-  int _selectedTab = 0; // 0: Tất cả, 1: Chưa làm, 2: Đã làm
+  int _selectedTab = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -58,7 +59,6 @@ class _StudentClassDetailScreenState extends State<StudentClassDetailScreen> {
     );
   }
 
-  // ── Header ────────────────────────────────────────────────────────────────
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 12, 16, 12),
@@ -100,7 +100,6 @@ class _StudentClassDetailScreenState extends State<StudentClassDetailScreen> {
     );
   }
 
-  // ── Stats từ dữ liệu thật ─────────────────────────────────────────────────
   Widget _buildDynamicStats() {
     return StreamBuilder<List<ExamModel>>(
       stream: examController.streamAssignedExamsForStudent(widget.classId),
@@ -109,15 +108,14 @@ class _StudentClassDetailScreenState extends State<StudentClassDetailScreen> {
           stream: submissionController
               .streamMySubmissionsForClass(widget.classId),
           builder: (context, subSnap) {
+            // Firestore tự cache → dùng data trực tiếp
             final exams = examSnap.data ?? [];
             final submissions = subSnap.data ?? {};
-            final now = DateTime.now();
 
             final done = submissions.length;
             final total = exams.length;
             final pending = total - done;
 
-            // Điểm trung bình
             double avg = 0;
             if (submissions.isNotEmpty) {
               avg = submissions.values
@@ -134,7 +132,9 @@ class _StudentClassDetailScreenState extends State<StudentClassDetailScreen> {
                 _statCard(Icons.pending_actions_rounded, "Chưa làm",
                     '$pending', Colors.orange),
                 const SizedBox(width: 12),
-                _statCard(Icons.star_rounded, "Điểm TB",
+                _statCard(
+                    Icons.star_rounded,
+                    "Điểm TB",
                     submissions.isEmpty ? '—' : avg.toStringAsFixed(1),
                     AppColors.success),
               ],
@@ -145,12 +145,10 @@ class _StudentClassDetailScreenState extends State<StudentClassDetailScreen> {
     );
   }
 
-  Widget _statCard(
-      IconData icon, String label, String value, Color iconColor) {
+  Widget _statCard(IconData icon, String label, String value, Color iconColor) {
     return Expanded(
       child: Container(
-        padding:
-            const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
+        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
@@ -184,7 +182,6 @@ class _StudentClassDetailScreenState extends State<StudentClassDetailScreen> {
     );
   }
 
-  // ── Tabs ──────────────────────────────────────────────────────────────────
   Widget _buildFilterTabs() {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -205,14 +202,12 @@ class _StudentClassDetailScreenState extends State<StudentClassDetailScreen> {
     return GestureDetector(
       onTap: () => setState(() => _selectedTab = index),
       child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         decoration: BoxDecoration(
           color: isSelected ? AppColors.primary : Colors.white,
           borderRadius: BorderRadius.circular(999),
           border: Border.all(
-            color:
-                isSelected ? AppColors.primary : AppColors.border,
+            color: isSelected ? AppColors.primary : AppColors.border,
           ),
         ),
         child: Text(
@@ -227,14 +222,10 @@ class _StudentClassDetailScreenState extends State<StudentClassDetailScreen> {
     );
   }
 
-  // ── Exam list kết hợp submission ─────────────────────────────────────────
   Widget _buildExamListWithSubmissions() {
     return StreamBuilder<List<ExamModel>>(
       stream: examController.streamAssignedExamsForStudent(widget.classId),
       builder: (context, examSnap) {
-        if (examSnap.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
         if (examSnap.hasError) {
           return Center(
             child: Text('Lỗi tải đề thi: ${examSnap.error}',
@@ -242,7 +233,9 @@ class _StudentClassDetailScreenState extends State<StudentClassDetailScreen> {
           );
         }
 
+        // Firestore tự cache → dùng data trực tiếp
         final exams = examSnap.data ?? [];
+
         if (exams.isEmpty) {
           return const Center(
             child: Padding(
@@ -264,6 +257,7 @@ class _StudentClassDetailScreenState extends State<StudentClassDetailScreen> {
           stream: submissionController
               .streamMySubmissionsForClass(widget.classId),
           builder: (context, subSnap) {
+            // Firestore tự cache → dùng data trực tiếp
             final submissions = subSnap.data ?? {};
             final filtered = _filterExams(exams, submissions);
 
@@ -296,16 +290,15 @@ class _StudentClassDetailScreenState extends State<StudentClassDetailScreen> {
   List<ExamModel> _filterExams(
       List<ExamModel> exams, Map<String, SubmissionModel> submissions) {
     switch (_selectedTab) {
-      case 1: // Chưa làm
+      case 1:
         return exams.where((e) => !submissions.containsKey(e.id)).toList();
-      case 2: // Đã làm
+      case 2:
         return exams.where((e) => submissions.containsKey(e.id)).toList();
       default:
         return exams;
     }
   }
 
-  // ── Exam card ─────────────────────────────────────────────────────────────
   Widget _examCard(ExamModel exam, SubmissionModel? submission) {
     final assignment = exam.assignments.firstWhere(
       (a) => a.classId == widget.classId,
@@ -323,19 +316,14 @@ class _StudentClassDetailScreenState extends State<StudentClassDetailScreen> {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isCompleted
-            ? const Color(0xFFF0FDF4)
-            : Colors.white,
+        color: isCompleted ? const Color(0xFFF0FDF4) : Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: isCompleted
-              ? const Color(0xFFD1FAE5)
-              : AppColors.border,
+          color: isCompleted ? const Color(0xFFD1FAE5) : AppColors.border,
         ),
       ),
       child: Column(
         children: [
-          // Row trên
           Row(
             children: [
               Container(
@@ -383,7 +371,6 @@ class _StudentClassDetailScreenState extends State<StudentClassDetailScreen> {
                   ],
                 ),
               ),
-              // Badge trạng thái
               if (isCompleted)
                 Container(
                   padding: const EdgeInsets.symmetric(
@@ -395,10 +382,9 @@ class _StudentClassDetailScreenState extends State<StudentClassDetailScreen> {
                   child: Text(
                     submission.score.toStringAsFixed(1),
                     style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.success,
-                      fontSize: 14,
-                    ),
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.success,
+                        fontSize: 14),
                   ),
                 )
               else if (isUrgent)
@@ -419,28 +405,21 @@ class _StudentClassDetailScreenState extends State<StudentClassDetailScreen> {
                 ),
             ],
           ),
-
           const SizedBox(height: 14),
           const Divider(height: 1),
           const SizedBox(height: 14),
-
-          // Row dưới
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Thông tin thời hạn
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
-                      Icon(
-                        Icons.calendar_today_rounded,
-                        size: 13,
-                        color: isOverdue
-                            ? Colors.red
-                            : AppColors.textLight,
-                      ),
+                      Icon(Icons.calendar_today_rounded,
+                          size: 13,
+                          color:
+                              isOverdue ? Colors.red : AppColors.textLight),
                       const SizedBox(width: 4),
                       Text(
                         isOverdue
@@ -472,10 +451,15 @@ class _StudentClassDetailScreenState extends State<StudentClassDetailScreen> {
                   ],
                 ],
               ),
-
-              // Nút hành động
-              _buildActionButton(exam, assignment, isCompleted,
-                  isOverdue, isOpen, isUrgent),
+              _buildActionButton(
+                exam: exam,
+                assignment: assignment,
+                submission: submission,
+                isCompleted: isCompleted,
+                isOverdue: isOverdue,
+                isOpen: isOpen,
+                isUrgent: isUrgent,
+              ),
             ],
           ),
         ],
@@ -483,53 +467,64 @@ class _StudentClassDetailScreenState extends State<StudentClassDetailScreen> {
     );
   }
 
-  Widget _buildActionButton(
-    ExamModel exam,
-    ExamAssignment assignment,
-    bool isCompleted,
-    bool isOverdue,
-    bool isOpen,
-    bool isUrgent,
-  ) {
-    if (isCompleted) {
-      return Row(
-        children: [
-          const Icon(Icons.task_alt_rounded,
-              color: AppColors.success, size: 18),
-          const SizedBox(width: 4),
-          const Text('Đã nộp',
-              style: TextStyle(
-                  color: AppColors.success,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13)),
-        ],
-      );
+  Widget _buildActionButton({
+    required ExamModel exam,
+    required ExamAssignment assignment,
+    required SubmissionModel? submission,
+    required bool isCompleted,
+    required bool isOverdue,
+    required bool isOpen,
+    required bool isUrgent,
+  }) {
+    if (isCompleted && submission != null) {
+      if (assignment.showAnswerAfterSubmit) {
+        return ElevatedButton.icon(
+          onPressed: () => _openReview(exam, submission),
+          icon: const Icon(Icons.visibility_rounded, size: 16),
+          label: const Text('Xem đáp án'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.primary,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(30)),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            textStyle: const TextStyle(
+                fontSize: 13, fontWeight: FontWeight.w600),
+          ),
+        );
+      }
+
+      return Row(children: const [
+        Icon(Icons.task_alt_rounded, color: AppColors.success, size: 18),
+        SizedBox(width: 4),
+        Text('Đã nộp',
+            style: TextStyle(
+                color: AppColors.success,
+                fontWeight: FontWeight.w600,
+                fontSize: 13)),
+      ]);
     }
 
     if (isOverdue) {
-      return Row(
-        children: [
-          const Icon(Icons.lock_clock_rounded,
-              color: Colors.grey, size: 18),
-          const SizedBox(width: 4),
-          const Text('Đã hết hạn',
-              style: TextStyle(color: Colors.grey, fontSize: 13)),
-        ],
-      );
+      return Row(children: const [
+        Icon(Icons.lock_clock_rounded, color: Colors.grey, size: 18),
+        SizedBox(width: 4),
+        Text('Đã hết hạn',
+            style: TextStyle(color: Colors.grey, fontSize: 13)),
+      ]);
     }
 
     if (!isOpen) {
-      final now = DateTime.now();
-      final diff = assignment.openAt.difference(now);
+      final diff = assignment.openAt.difference(DateTime.now());
       final days = diff.inDays;
       return Text(
         days > 0 ? 'Mở sau $days ngày' : 'Sắp mở',
-        style: const TextStyle(
-            color: AppColors.textLight, fontSize: 13),
+        style:
+            const TextStyle(color: AppColors.textLight, fontSize: 13),
       );
     }
 
-    // Có thể làm bài
     return ElevatedButton(
       onPressed: () => _startExam(exam),
       style: ElevatedButton.styleFrom(
@@ -547,23 +542,29 @@ class _StudentClassDetailScreenState extends State<StudentClassDetailScreen> {
     );
   }
 
+  void _openReview(ExamModel exam, SubmissionModel submission) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ExamReviewScreen(
+          exam: exam,
+          classId: widget.classId,
+          submission: submission,
+        ),
+      ),
+    );
+  }
+
   Future<void> _startExam(ExamModel exam) async {
     final result = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
-        builder: (_) => ExamTakeScreen(
-          exam: exam,
-          classId: widget.classId,
-        ),
+        builder: (_) =>
+            ExamTakeScreen(exam: exam, classId: widget.classId),
       ),
     );
-    // result == true nghĩa là đã nộp bài → stream tự cập nhật
-    if (result == true) {
-      setState(() {}); // trigger rebuild để cập nhật UI ngay
-    }
+    if (result == true) setState(() {});
   }
 
-  String _formatDate(DateTime dt) {
-    return '${dt.day}/${dt.month}/${dt.year}';
-  }
+  String _formatDate(DateTime dt) => '${dt.day}/${dt.month}/${dt.year}';
 }

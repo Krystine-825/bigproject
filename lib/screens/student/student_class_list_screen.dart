@@ -16,7 +16,6 @@ class _StudentClassListScreenState extends State<StudentClassListScreen> {
   final searchController = TextEditingController();
   final classController = ClassController();
   String searchText = '';
-  // 'all' | 'pending' | 'done'
   String _selectedFilter = 'all';
 
   @override
@@ -151,16 +150,16 @@ class _StudentClassListScreenState extends State<StudentClassListScreen> {
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: classController.streamStudentClasses(),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
         if (snapshot.hasError) {
           return Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.error_outline_rounded,
-                    size: 48, color: Colors.redAccent),
+                const Icon(
+                  Icons.error_outline_rounded,
+                  size: 48,
+                  color: Colors.redAccent,
+                ),
                 const SizedBox(height: 12),
                 Text(
                   'Lỗi tải dữ liệu\n${snapshot.error}',
@@ -172,35 +171,23 @@ class _StudentClassListScreenState extends State<StudentClassListScreen> {
           );
         }
 
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            snapshot.data == null) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
         final allClasses = snapshot.data ?? [];
-
-        // Lọc theo status
-        List<Map<String, dynamic>> filtered = allClasses;
-        if (_selectedFilter == 'pending') {
-          filtered = allClasses
-              .where((c) => (c['status'] as String? ?? 'pending') == 'pending')
-              .toList();
-        } else if (_selectedFilter == 'done') {
-          filtered = allClasses
-              .where((c) => (c['status'] as String? ?? 'pending') == 'done')
-              .toList();
-        }
-
-        // Lọc theo search
-        if (searchText.isNotEmpty) {
-          filtered = filtered
-              .where((c) =>
-                  c['name'].toString().toLowerCase().contains(searchText))
-              .toList();
-        }
 
         if (allClasses.isEmpty) {
           return Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.school_outlined,
-                    size: 64, color: AppColors.textHint),
+                const Icon(
+                  Icons.school_outlined,
+                  size: 64,
+                  color: AppColors.textHint,
+                ),
                 const SizedBox(height: 12),
                 const Text(
                   'Chưa tham gia lớp nào',
@@ -220,6 +207,27 @@ class _StudentClassListScreenState extends State<StudentClassListScreen> {
           );
         }
 
+        // Lọc theo status
+        List<Map<String, dynamic>> filtered = allClasses;
+        if (_selectedFilter == 'pending') {
+          filtered = allClasses
+              .where((c) => (c['status'] as String? ?? 'pending') == 'pending')
+              .toList();
+        } else if (_selectedFilter == 'done') {
+          filtered = allClasses
+              .where((c) => (c['status'] as String? ?? 'pending') == 'done')
+              .toList();
+        }
+
+        // Lọc theo search
+        if (searchText.isNotEmpty) {
+          filtered = filtered
+              .where(
+                (c) => c['name'].toString().toLowerCase().contains(searchText),
+              )
+              .toList();
+        }
+
         if (filtered.isEmpty) {
           return Column(
             children: [
@@ -229,8 +237,11 @@ class _StudentClassListScreenState extends State<StudentClassListScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.search_off_rounded,
-                          size: 52, color: AppColors.textHint),
+                      const Icon(
+                        Icons.search_off_rounded,
+                        size: 52,
+                        color: AppColors.textHint,
+                      ),
                       const SizedBox(height: 12),
                       Text(
                         searchText.isNotEmpty
@@ -343,10 +354,7 @@ class _StudentClassListScreenState extends State<StudentClassListScreen> {
                 ],
               ),
             ),
-            const Icon(
-              Icons.chevron_right_rounded,
-              color: AppColors.textHint,
-            ),
+            const Icon(Icons.chevron_right_rounded, color: AppColors.textHint),
           ],
         ),
       ),

@@ -17,6 +17,16 @@ class _ExamBankScreenState extends State<ExamBankScreen> {
 
   int    _selectedTab  = 0;
   String _searchQuery  = '';
+  
+  // Khai báo biến lưu Stream
+  late final Stream<List<ExamModel>> _examStream;
+
+  @override
+  void initState() {
+    super.initState();
+    // Khởi tạo Stream 1 lần duy nhất
+    _examStream = _controller.streamMyExams();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -67,7 +77,7 @@ class _ExamBankScreenState extends State<ExamBankScreen> {
 
           Expanded(
             child: StreamBuilder<List<ExamModel>>(
-              stream: _controller.streamMyExams(),
+              stream: _examStream, // dùng biến đã lưu thay vì gọi hàm tránh lagg app
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());

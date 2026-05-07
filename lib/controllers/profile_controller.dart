@@ -2,11 +2,14 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../data/services/auth_service.dart';
 import '../data/services/firestore_service.dart';
 import '../data/models/user_model.dart';
+import 'notification_controller.dart'; 
+import '../data/services/fcm_service.dart';
 
 class ProfileController {
-  final auth = AuthService();
-  final firestore = FireStoreService();
-
+  final auth       = AuthService();
+  final firestore  = FireStoreService();
+  final _notif     = NotificationController(); 
+  final _fcmService  = FcmService();
 
   Future<UserModel?> getCurrentUser() async {
     final uid = auth.currentUid;
@@ -20,7 +23,7 @@ class ProfileController {
     }
   }
 
-  //  Cập nhật thông tin cá nhân 
+
   Future<String?> updateProfile({
     required String name,
     String? phone,
@@ -33,7 +36,7 @@ class ProfileController {
         'name': name.trim(),
         if (phone != null && phone.trim().isNotEmpty) 'phone': phone.trim(),
       });
-      // Cập nhật displayName trên Firebase Auth luôn
+
       await auth.currentUser?.updateDisplayName(name.trim());
       return null;
     } catch (_) {
@@ -57,13 +60,17 @@ class ProfileController {
     if (user == null || user.email == null) return 'Phiên đăng nhập hết hạn.';
 
     try {
-      // Re-authenticate trước khi đổi mật khẩu
+
       final credential = EmailAuthProvider.credential(
         email: user.email!,
         password: currentPassword,
       );
       await user.reauthenticateWithCredential(credential);
       await user.updatePassword(newPassword);
+
+      // Thông báo bảo mật: đổi mật khẩu thành công
+      await _notif.notifyPasswordChanged(userId: user.uid);
+
       return null;
     } on FirebaseAuthException catch (e) {
       switch (e.code) {
@@ -82,8 +89,8 @@ class ProfileController {
     }
   }
 
- 
-  // Trả về {classes, exams, avgScore}
+
+
   Future<Map<String, dynamic>> getStudentStats() async {
     final uid = auth.currentUid;
     if (uid == null) return {'classes': 0, 'exams': 0, 'avgScore': 0.0};
@@ -105,7 +112,9 @@ class ProfileController {
       final examCount = submissions.length;
       final avgScore = examCount > 0
           ? submissions.fold<double>(
-                  0, (s, d) => s + ((d.data()['score'] as num?)?.toDouble() ?? 0)) /
+                  0,
+                  (s, d) =>
+                      s + ((d.data()['score'] as num?)?.toDouble() ?? 0)) /
               examCount
           : 0.0;
 
@@ -119,8 +128,8 @@ class ProfileController {
     }
   }
 
-  
-  //Trả về {classes, students, exams}
+
+
   Future<Map<String, int>> getTeacherStats() async {
     final uid = auth.currentUid;
     if (uid == null) return {'classes': 0, 'students': 0, 'exams': 0};
@@ -134,7 +143,9 @@ class ProfileController {
       final studentCount = classSnap.docs.fold<int>(
         0,
         (s, d) =>
-            s + (((d.data()['student_count'] as num?)?.toInt() ?? 0).clamp(0, 99999)),
+            s +
+            (((d.data()['student_count'] as num?)?.toInt() ?? 0)
+                .clamp(0, 99999)),
       );
       final examCount = await firestore.countWhere(
         'exams',
@@ -151,5 +162,16 @@ class ProfileController {
     }
   }
 
-  Future<void> signOut() => auth.signOut();
+  Future<void> signOut() async {
+    try {
+      // thu hồi token của thiết bị này trước khi đăng xuất
+      // thông báo sẽ không gửi tới máy người dùng đã log out nữa
+      await _fcmService.removeToken(); 
+    } catch (_) {
+      // nếu lỗi xóa token (ví dụ mạng yếu), ta vẫn tiếp tục cho đăng xuất
+    }
+
+    // thực hiện đăng xuất tài khoản
+    await auth.signOut();
+  }
 }

@@ -7,6 +7,11 @@ import '../../controllers/exam_controller.dart';
 import '../../controllers/submission_controller.dart';
 import '../../data/models/exam_model.dart';
 import '../../data/models/submission_model.dart';
+import '../notification/notification_screen.dart';
+import 'list_exam.dart';
+import 'exam_review_screen.dart'; // ← MỚI
+import 'exam_take_screen.dart';
+import '../../widgets/common/notification_badge.dart';
 
 class StudentHomeScreen extends StatefulWidget {
   const StudentHomeScreen({super.key});
@@ -60,7 +65,6 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
     );
   }
 
-  // ── Header ────────────────────────────────────────────────────────────────
   Widget _header() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
@@ -75,14 +79,16 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                     height: 48,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border:
-                          Border.all(color: AppColors.primary, width: 2),
+                      border: Border.all(color: AppColors.primary, width: 2),
                     ),
                     child: ClipOval(
                       child: Container(
                         color: const Color(0xFFE2E8F0),
-                        child: const Icon(Icons.person_rounded,
-                            color: AppColors.textHint, size: 28),
+                        child: const Icon(
+                          Icons.person_rounded,
+                          color: AppColors.textHint,
+                          size: 28,
+                        ),
                       ),
                     ),
                   ),
@@ -105,43 +111,35 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Xin chào,',
-                      style: TextStyle(
-                          fontSize: 13, color: AppColors.textMedium)),
+                  const Text(
+                    'Xin chào,',
+                    style: TextStyle(fontSize: 13, color: AppColors.textMedium),
+                  ),
                   Text(
                     studentName,
                     style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textDark),
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textDark,
+                    ),
                   ),
                 ],
               ),
             ],
           ),
           const Spacer(),
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: AppColors.white,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                    color: Colors.black.withOpacity(0.06),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2))
-              ],
+          NotificationBadge(
+            iconColor: AppColors.textMedium,
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const NotificationScreen()),
             ),
-            child: const Icon(Icons.notifications_outlined,
-                color: AppColors.textMedium, size: 22),
           ),
         ],
       ),
     );
   }
 
-  // ── Stats từ dữ liệu thật ─────────────────────────────────────────────────
   Widget _buildRealStats() {
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: classController.streamStudentClasses(),
@@ -153,19 +151,18 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
           return _statsRow(pending: 0, newToday: 0, done: 0);
         }
 
-        // Stream submissions của student
         return StreamBuilder<Map<String, SubmissionModel>>(
-          // dùng class đầu tiên để minh hoạ; sau có thể merge nhiều class
           stream: submissionController.streamMySubmissionsForClass(
-              classIds.isNotEmpty ? classIds.first : ''),
+            classIds.isNotEmpty ? classIds.first : '',
+          ),
           builder: (context, subSnap) {
             final submissions = subSnap.data ?? {};
 
-            // Đếm đề thi qua FutureBuilder
             return FutureBuilder<_HomeStats>(
               future: _computeStats(classIds, submissions),
               builder: (context, statSnap) {
-                final stats = statSnap.data ??
+                final stats =
+                    statSnap.data ??
                     _HomeStats(pending: 0, newToday: 0, done: 0);
                 return _statsRow(
                   pending: stats.pending,
@@ -193,7 +190,6 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
 
     for (final classId in classIds) {
       try {
-        // Lấy danh sách đề của lớp (1 lần)
         final exams = await examController
             .streamAssignedExamsForStudent(classId)
             .first;
@@ -204,12 +200,12 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
             orElse: () => exam.assignments.first,
           );
           final isDone = knownSubmissions.containsKey(exam.id);
-          final isOpen = assignment.openAt.isBefore(now) &&
+          final isOpen =
+              assignment.openAt.isBefore(now) &&
               assignment.closeAt.isAfter(now);
 
           if (!isDone && isOpen) totalPending++;
 
-          // "Mới hôm nay": được giao hôm nay
           final assignedAt =
               DateTime.tryParse(assignment.assignedAt) ?? DateTime(2000);
           if (assignedAt.isAfter(todayStart)) totalNewToday++;
@@ -224,14 +220,27 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
     );
   }
 
-  Widget _statsRow(
-      {required int pending,
-      required int newToday,
-      required int done}) {
+  Widget _statsRow({
+    required int pending,
+    required int newToday,
+    required int done,
+  }) {
     final items = [
-      {'count': '$pending', 'label': 'Chưa làm', 'color': const Color(0xFFFF9800)},
-      {'count': '$newToday', 'label': 'Mới hôm nay', 'color': const Color(0xFF007BFF)},
-      {'count': '$done', 'label': 'Hoàn thành', 'color': const Color(0xFF10B981)},
+      {
+        'count': '$pending',
+        'label': 'Chưa làm',
+        'color': const Color(0xFFFF9800),
+      },
+      {
+        'count': '$newToday',
+        'label': 'Mới hôm nay',
+        'color': const Color(0xFF007BFF),
+      },
+      {
+        'count': '$done',
+        'label': 'Hoàn thành',
+        'color': const Color(0xFF10B981),
+      },
     ];
 
     return Row(
@@ -260,17 +269,19 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                 Text(
                   stat['count'] as String,
                   style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: stat['color'] as Color),
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: stat['color'] as Color,
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   stat['label'] as String,
                   style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.textMedium),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textMedium,
+                  ),
                 ),
               ],
             ),
@@ -280,7 +291,6 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
     );
   }
 
-  // ── Đề thi gần đây (dữ liệu thật) ────────────────────────────────────────
   Widget _buildRecentExams() {
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: classController.streamStudentClasses(),
@@ -296,25 +306,41 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Đề thi của bạn',
-                    style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textDark)),
+                const Text(
+                  'Đề thi của bạn',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textDark,
+                  ),
+                ),
                 GestureDetector(
-                  onTap: () {}, // TODO: navigate to full list
-                  child: const Text('Xem tất cả >',
-                      style: TextStyle(
-                          fontSize: 14,
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.w600)),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const ListExamsScreen(),
+                    ),
+                  ),
+                  child: const Text(
+                    'Xem tất cả >',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
               ],
             ),
             const SizedBox(height: 16),
-            // Lấy đề từ lớp đầu tiên (hoặc tất cả lớp nếu muốn mở rộng)
-            ...classes.take(3).map((cls) => _buildClassExams(
-                cls['classId'] as String, cls['name'] as String)),
+            ...classes
+                .take(3)
+                .map(
+                  (cls) => _buildClassExams(
+                    cls['classId'] as String,
+                    cls['name'] as String,
+                  ),
+                ),
           ],
         );
       },
@@ -329,14 +355,12 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
         if (exams.isEmpty) return const SizedBox.shrink();
 
         return StreamBuilder<Map<String, SubmissionModel>>(
-          stream:
-              submissionController.streamMySubmissionsForClass(classId),
+          stream: submissionController.streamMySubmissionsForClass(classId),
           builder: (context, subSnap) {
             final submissions = subSnap.data ?? {};
             final now = DateTime.now();
 
-            // Hiển thị tối đa 3 đề gần nhất
-            final displayExams = exams.take(3).toList();
+            final displayExams = exams.take(5).toList();
 
             return Column(
               children: displayExams.map((exam) {
@@ -350,7 +374,9 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
 
                 return _buildHomeExamCard(
                   exam: exam,
+                  classId: classId,           // ← MỚI
                   className: className,
+                  assignment: assignment,     // ← MỚI
                   submission: sub,
                   isOverdue: isOverdue,
                   isCompleted: isCompleted,
@@ -365,14 +391,17 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
 
   Widget _buildHomeExamCard({
     required ExamModel exam,
+    required String classId,            // ← MỚI
     required String className,
+    required ExamAssignment assignment, // ← MỚI
     required SubmissionModel? submission,
     required bool isOverdue,
     required bool isCompleted,
   }) {
     if (isCompleted && submission != null) {
-      // Card bài đã nộp
-      return Container(
+      final canReview = assignment.showAnswerAfterSubmit; // ← MỚI
+
+      Widget card = Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -389,8 +418,11 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                 color: const Color(0xFF10B981).withOpacity(0.1),
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: const Icon(Icons.task_alt_rounded,
-                  color: Color(0xFF10B981), size: 32),
+              child: const Icon(
+                Icons.task_alt_rounded,
+                color: Color(0xFF10B981),
+                size: 32,
+              ),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -401,20 +433,24 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Expanded(
-                        child: Text(exam.name,
-                            style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.textDark),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis),
+                        child: Text(
+                          exam.name,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textDark,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                       Text(
                         submission.score.toStringAsFixed(1),
                         style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF10B981)),
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF10B981),
+                        ),
                       ),
                     ],
                   ),
@@ -423,13 +459,31 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                     children: [
                       _infoItem(Icons.groups_rounded, className),
                       const SizedBox(width: 16),
-                      Text(
-                        _getGradeLabel(submission.score),
-                        style: const TextStyle(
+                      // ← MỚI: hint tap nếu được xem đáp án
+                      if (canReview) ...[
+                        const Spacer(),
+                        const Icon(Icons.visibility_rounded,
+                            size: 13, color: AppColors.primary),
+                        const SizedBox(width: 4),
+                        const Text(
+                          'Xem đáp án',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ] else ...[
+                        const SizedBox(width: 16),
+                        Text(
+                          _getGradeLabel(submission.score),
+                          style: const TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
-                            color: Color(0xFF10B981)),
-                      ),
+                            color: Color(0xFF10B981),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ],
@@ -438,14 +492,33 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
           ],
         ),
       );
+
+      // ← MỚI: bọc trong GestureDetector nếu được xem đáp án
+      if (canReview) {
+        return GestureDetector(
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ExamReviewScreen(
+                exam: exam,
+                classId: classId,
+                submission: submission,
+              ),
+            ),
+          ),
+          child: card,
+        );
+      }
+      return card;
     }
 
-    // Card chưa làm
-    final isUrgent = !isOverdue;
+    // Card chưa làm / hết hạn
+    final now = DateTime.now();
+    final isOpen = assignment.openAt.isBefore(now) && !isOverdue;
     final badgeText = isOverdue ? 'Hết hạn' : 'Chưa làm';
     final badgeColor = isOverdue ? Colors.grey : const Color(0xFFFF9800);
 
-    return Container(
+    final card = Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -453,9 +526,10 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4))
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
       child: Row(
@@ -482,26 +556,34 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                 Row(
                   children: [
                     Expanded(
-                      child: Text(exam.name,
-                          style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textDark),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis),
+                      child: Text(
+                        exam.name,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textDark,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: badgeColor.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(999),
                       ),
-                      child: Text(badgeText,
-                          style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: badgeColor)),
+                      child: Text(
+                        badgeText,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: badgeColor,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -510,8 +592,10 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                   children: [
                     _infoItem(Icons.groups_rounded, className),
                     const SizedBox(width: 16),
-                    _infoItem(Icons.description_rounded,
-                        '${exam.questions.length} câu'),
+                    _infoItem(
+                      Icons.description_rounded,
+                      '${exam.questions.length} câu',
+                    ),
                   ],
                 ),
               ],
@@ -520,6 +604,23 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
         ],
       ),
     );
+
+    // Chỉ cho tap vào nếu đề đang mở (chưa hết hạn, đã đến giờ)
+    if (isOpen) {
+      return GestureDetector(
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ExamTakeScreen(
+              exam: exam,
+              classId: classId,
+            ),
+          ),
+        ),
+        child: card,
+      );
+    }
+    return card;
   }
 
   Widget _infoItem(IconData icon, String text) {
@@ -527,9 +628,10 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
       children: [
         Icon(icon, size: 16, color: AppColors.textMedium),
         const SizedBox(width: 6),
-        Text(text,
-            style: const TextStyle(
-                fontSize: 13, color: AppColors.textMedium)),
+        Text(
+          text,
+          style: const TextStyle(fontSize: 13, color: AppColors.textMedium),
+        ),
       ],
     );
   }
@@ -547,6 +649,9 @@ class _HomeStats {
   final int pending;
   final int newToday;
   final int done;
-  const _HomeStats(
-      {required this.pending, required this.newToday, required this.done});
+  const _HomeStats({
+    required this.pending,
+    required this.newToday,
+    required this.done,
+  });
 }
