@@ -354,4 +354,29 @@ class NotificationController {
       data: {},
     );
   }
+
+  // Học sinh: đề thi bị xóa hoặc thu hồi
+  Future<void> notifyExamDeletedToStudents({
+    required List<String> studentIds,
+    required String examName,
+    required String classId,
+    required String className,
+  }) async {
+    await _notifyBatch(
+      toUserIds: studentIds,
+      type: NotificationType.examDeleted, 
+      title: 'Đề thi đã bị hủy',
+      body: 'Đề thi "$examName" của lớp "$className" đã bị giáo viên thu hồi hoặc xóa bỏ.',
+      data: {
+        'classId': classId, 
+        'className': className, 
+        'examName': examName
+      },
+    );
+  }
 }
+
+
+
+//chạy app màn hình danh sách có thể báo lỗi đỏ ở Debug Console yêu cầu tạo Index. 
+  //click vào link xanh trong báo lỗi để Firebase tự động tạo Index

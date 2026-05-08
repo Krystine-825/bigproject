@@ -18,14 +18,61 @@ class _ExamBankScreenState extends State<ExamBankScreen> {
   int    _selectedTab  = 0;
   String _searchQuery  = '';
   
-  // Khai báo biến lưu Stream
+  // Khai báo biến lưu Stream để tối ưu hiệu năng
   late final Stream<List<ExamModel>> _examStream;
 
   @override
   void initState() {
     super.initState();
-    // Khởi tạo Stream 1 lần duy nhất
+    // Khởi tạo Stream 1 lần duy nhất để tránh load lại khi gõ tìm kiếm
     _examStream = _controller.streamMyExams();
+  }
+
+  // xác nhận và thực hiện xóa đề 
+  Future<void> _confirmDelete(ExamModel exam) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Xóa đề thi?', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+        content: Text('Bạn có chắc muốn xóa đề "${exam.name}"? \nHành động này sẽ xóa vĩnh viễn đề thi và toàn bộ bài làm của học sinh liên quan.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy', style: TextStyle(color: AppColors.textMedium)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('Xóa ngay', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        await _controller.deleteExam(exam.id); 
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Đã xóa đề thi thành công'),
+              backgroundColor: Colors.green,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Lỗi: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
   }
 
   @override
@@ -42,6 +89,7 @@ class _ExamBankScreenState extends State<ExamBankScreen> {
       ),
       body: Column(
         children: [
+          // Thanh tìm kiếm
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: TextField(
@@ -49,22 +97,19 @@ class _ExamBankScreenState extends State<ExamBankScreen> {
                   setState(() => _searchQuery = v.trim().toLowerCase()),
               decoration: InputDecoration(
                 hintText: 'Tìm kiếm đề thi...',
-                hintStyle: const TextStyle(
-                    color: AppColors.textHint, fontSize: 15),
-                prefixIcon:
-                    const Icon(Icons.search, color: AppColors.textHint),
+                hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 15),
+                prefixIcon: const Icon(Icons.search, color: AppColors.textHint),
                 filled: true,
                 fillColor: Colors.white,
                 border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
                     borderSide: BorderSide.none),
-                contentPadding:
-                    const EdgeInsets.symmetric(vertical: 14),
+                contentPadding: const EdgeInsets.symmetric(vertical: 14),
               ),
             ),
           ),
 
-          // Tabs
+          // Bộ lọc Tab
           Container(
             color: Colors.white,
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -77,7 +122,7 @@ class _ExamBankScreenState extends State<ExamBankScreen> {
 
           Expanded(
             child: StreamBuilder<List<ExamModel>>(
-              stream: _examStream, // dùng biến đã lưu thay vì gọi hàm tránh lagg app
+              stream: _examStream, 
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
@@ -87,25 +132,7 @@ class _ExamBankScreenState extends State<ExamBankScreen> {
                 final filtered = _filterExams(exams);
 
                 if (filtered.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.description_outlined,
-                            size: 56, color: AppColors.textHint),
-                        const SizedBox(height: 12),
-                        Text(
-                          exams.isEmpty
-                              ? 'Chưa có đề thi nào'
-                              : 'Không tìm thấy đề thi',
-                          style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textMedium),
-                        ),
-                      ],
-                    ),
-                  );
+                  return _buildEmptyState(exams.isEmpty);
                 }
 
                 return ListView.builder(
@@ -149,11 +176,8 @@ class _ExamBankScreenState extends State<ExamBankScreen> {
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 15,
-                fontWeight:
-                    selected ? FontWeight.w700 : FontWeight.w600,
-                color: selected
-                    ? AppColors.primary
-                    : AppColors.textMedium,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                color: selected ? AppColors.primary : AppColors.textMedium,
               )),
         ),
       ),
@@ -163,11 +187,9 @@ class _ExamBankScreenState extends State<ExamBankScreen> {
   Widget _buildExamCard(ExamModel exam) {
     final isAssigned = exam.isAssigned;
     return GestureDetector(
-      // ── Ấn vào đề → mở ExamDetailScreen ──
       onTap: () => Navigator.push(
         context,
-        MaterialPageRoute(
-            builder: (_) => ExamDetailScreen(exam: exam)),
+        MaterialPageRoute(builder: (_) => ExamDetailScreen(exam: exam)),
       ),
       child: Container(
         margin: const EdgeInsets.only(bottom: 16),
@@ -184,45 +206,56 @@ class _ExamBankScreenState extends State<ExamBankScreen> {
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
                   child: Text(exam.name,
-                      style: const TextStyle(fontSize: 17.5,
-                          fontWeight: FontWeight.w700)),
+                      style: const TextStyle(fontSize: 17.5, fontWeight: FontWeight.w700)),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: isAssigned
-                        ? AppColors.successBg
-                        : AppColors.bgLight,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    isAssigned ? 'Đã giao' : 'Chưa giao',
-                    style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: isAssigned
-                            ? AppColors.success
-                            : AppColors.textHint),
-                  ),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    // Nhãn trạng thái
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: isAssigned ? AppColors.successBg : AppColors.bgLight,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        isAssigned ? 'Đã giao' : 'Chưa giao',
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: isAssigned ? AppColors.success : AppColors.textHint),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    // NÚT XÓA ĐỀ (THÙNG RÁC ĐỎ)
+                    GestureDetector(
+                      onTap: () => _confirmDelete(exam),
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 20),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _infoItem(Icons.description_outlined,
-                    '${exam.questions.length} câu hỏi'),
-                _infoItem(Icons.timer_outlined,
-                    '${exam.durationMinutes ?? 45} phút'),
-                // Hiển thị số lớp đã giao nếu có
+                _infoItem(Icons.description_outlined, '${exam.questions.length} câu hỏi'),
+                _infoItem(Icons.timer_outlined, '${exam.durationMinutes ?? 45} phút'),
                 if (exam.assignments.isNotEmpty)
-                  _infoItem(Icons.groups_rounded,
-                      '${exam.assignments.length} lớp'),
+                  _infoItem(Icons.groups_rounded, '${exam.assignments.length} lớp'),
               ],
             ),
           ],
@@ -233,11 +266,25 @@ class _ExamBankScreenState extends State<ExamBankScreen> {
 
   Widget _infoItem(IconData icon, String text) {
     return Row(children: [
-      Icon(icon, size: 20, color: AppColors.textLight),
+      Icon(icon, size: 18, color: AppColors.textLight),
       const SizedBox(width: 6),
-      Text(text,
-          style: const TextStyle(fontSize: 13.5,
-              color: AppColors.textMedium)),
+      Text(text, style: const TextStyle(fontSize: 13, color: AppColors.textMedium)),
     ]);
+  }
+
+  Widget _buildEmptyState(bool isBankEmpty) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.description_outlined, size: 56, color: AppColors.textHint),
+          const SizedBox(height: 12),
+          Text(
+            isBankEmpty ? 'Chưa có đề thi nào' : 'Không tìm thấy đề thi khớp với tìm kiếm',
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textMedium),
+          ),
+        ],
+      ),
+    );
   }
 }

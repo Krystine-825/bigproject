@@ -6,6 +6,7 @@ class NotificationType {
   static const examDeadline = 'exam_deadline';
   static const subSuccess = 'sub_success';
   static const examExpiredUnsubmitted = 'exam_expired_unsubmitted'; //hết hạn mà chưa nộp
+  static const examDeleted = 'exam_deleted';
 
 
   //giáo viên

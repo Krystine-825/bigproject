@@ -193,11 +193,10 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
             width: double.infinity,
             child: ElevatedButton(
               onPressed: () {
-                Navigator.of(context).pop();
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (_) => const ExamBankScreen()),
-                  (route) => route.isFirst,
-                );
+                Navigator.of(context).pop(); // đóng Dialog thành công
+                Navigator.of(context).pop(true); // đóng màn hình Giao đề, truyền 'true' về màn hình trước để nó tự refresh dữ liệu
+                //Lệnh pushAndRemoveUntil sẽ xóa sạch lịch sử màn hình và "đè" một màn hình ExamBankScreen hoàn toàn mới lên trên cùng
+                //push trực tiếp một màn hình tab (như Kho đề) bằng MaterialPageRoute sẽ làm mất hoàn toàn thanh Bottom Navigation Bar ở dưới đáy
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,

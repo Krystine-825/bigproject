@@ -27,10 +27,13 @@ class AppNavigator {
   }
 
   static void _goToHome(BuildContext context) {
+    // Luôn dọn dẹp Stack và đưa về trang chủ làm gốc
     Navigator.pushAndRemoveUntil(
       context,
-      MaterialPageRoute(builder: (_) => const StudentHomeScreen(),
-       settings: const RouteSettings(name: '/student/home')),
+      MaterialPageRoute(
+        builder: (_) => const StudentHomeScreen(),
+        settings: const RouteSettings(name: '/student/home'),
+      ),
       (route) => route.isFirst,
     );
   }
@@ -39,7 +42,8 @@ class AppNavigator {
     final currentRoute = ModalRoute.of(context)?.settings.name;
 
     if (currentRoute != '/student/class-list') {
-      Navigator.push(
+      // Dùng pushReplacement để thay thế màn hình hiện tại bằng màn hình Lớp học
+      Navigator.pushReplacement(
         context,
         MaterialPageRoute(
           builder: (_) => const StudentClassListScreen(),
@@ -49,10 +53,11 @@ class AppNavigator {
     }
   }
 
-   static void _goToProfile(BuildContext context) {
+  static void _goToProfile(BuildContext context) {
     final currentRoute = ModalRoute.of(context)?.settings.name;
     if (currentRoute != '/student/profile') {
-      Navigator.push(
+      // Dùng pushReplacement để thay thế màn hình hiện tại bằng màn hình Cá nhân
+      Navigator.pushReplacement(
         context,
         MaterialPageRoute(
           builder: (_) => const UserProfileScreen(),
@@ -61,10 +66,12 @@ class AppNavigator {
       );
     }
   }
-   static void _goToResults(BuildContext context) {
+
+  static void _goToResults(BuildContext context) {
     final currentRoute = ModalRoute.of(context)?.settings.name;
     if (currentRoute != '/student/results') {
-      Navigator.push(
+      // Dùng pushReplacement để thay thế màn hình hiện tại bằng màn hình Kết quả
+      Navigator.pushReplacement(
         context,
         MaterialPageRoute(
           builder: (_) => const StudentResultsScreen(),
@@ -72,5 +79,8 @@ class AppNavigator {
         ),
       );
     }
-   }
+  }
 }
+// làm thế này thì học viên đỡ lag máy 
+// vì cách cũ thì bật đi bật lại các màn nó sẽ giữ các màn cũ chồng lớp lên nhau còn cách này thì không 
+// xem thử cách này được không thì thử lại cách cũ nhé
