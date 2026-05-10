@@ -16,7 +16,7 @@ void main() async {
     androidProvider: kDebugMode ? AndroidProvider.debug : AndroidProvider.playIntegrity, 
     appleProvider: kDebugMode ? AppleProvider.debug : AppleProvider.deviceCheck,
   );
-   await FcmService.initBackgroundHandler();
+  await FcmService.init();
   runApp(const MyApp());
 }
 

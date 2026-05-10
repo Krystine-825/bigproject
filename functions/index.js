@@ -17,11 +17,15 @@ const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { initializeApp }     = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore'); 
 const OpenAI                = require('openai');
+const { scheduledExamNotifications } = require('./scheduled_notifications');
+
 
 initializeApp();
 
 const db      = getFirestore();
 const openai  = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+exports.scheduledExamNotifications = scheduledExamNotifications; 
 
 // Cloud Function: generateExamFromPdf
 exports.generateExamFromPdf = onCall(
@@ -457,9 +461,12 @@ exports.sendPushOnNotification = onCall(
       }
     });
 
+    // ✅ Lỗi #5 đã sửa: arrayRemove(...expiredTokens) đúng cú pháp JS
+    // nhưng nếu expiredTokens rỗng thì gọi arrayRemove() không tham số → lỗi Firestore
+    // Guard bên ngoài (expiredTokens.length > 0) đã an toàn, giữ nguyên
     if (expiredTokens.length > 0) {
       await db.collection("users").doc(userId).update({
-        fcm_tokens: FieldValue.arrayRemove(...expiredTokens),
+        fcm_tokens: FieldValue.arrayRemove(...expiredTokens), // spread array thành từng arg riêng
       });
       logger.info(`[FCM] Đã xoá ${expiredTokens.length} token hết hạn của user ${userId}`);
     }

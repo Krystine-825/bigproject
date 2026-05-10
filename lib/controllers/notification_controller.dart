@@ -374,9 +374,122 @@ class NotificationController {
       },
     );
   }
+
+   Future<void> notifyExamDeadline({
+    required List<String> studentIds,
+    required String examName,
+    required String examId,
+    required String classId,
+    required String className,
+    required DateTime closeAt,
+    required bool is24h, // true = nhắc trước 24h, false = nhắc trước 1h
+  }) async {
+    final closeStr =
+        '${closeAt.day}/${closeAt.month}/${closeAt.year} '
+        '${closeAt.hour.toString().padLeft(2, '0')}:'
+        '${closeAt.minute.toString().padLeft(2, '0')}';
+ 
+    final label = is24h ? '24 giờ' : '1 giờ';
+ 
+    await _notifyBatch(
+      toUserIds: studentIds,
+      type: NotificationType.examDeadline,
+      title: '⏰ Sắp hết hạn nộp bài',
+      body: 'Còn $label để nộp "$examName" lớp "$className". Hạn: $closeStr.',
+      data: {
+        'examId': examId,
+        'classId': classId,
+        'examName': examName,
+        'className': className,
+        'closeAt': closeAt.toIso8601String(),
+      },
+    );
+  }
+ 
+  //  Hết hạn mà học sinh chưa nộp 
+  Future<void> notifyExamExpiredUnsubmitted({
+    required List<String> studentIds,
+    required String examName,
+    required String examId,
+    required String classId,
+    required String className,
+  }) async {
+    await _notifyBatch(
+      toUserIds: studentIds,
+      type: NotificationType.examExpiredUnsubmitted,
+      title: '❌ Bạn đã bỏ lỡ bài thi',
+      body: 'Đã hết hạn nộp "$examName" lớp "$className" mà bạn chưa nộp.',
+      data: {
+        'examId': examId,
+        'classId': classId,
+        'examName': examName,
+        'className': className,
+      },
+    );
+  }
+ 
+  // Đề thi đã đóng — thông báo cho giáo viên
+  Future<void> notifyExamClosed({
+    required String teacherId,
+    required String examName,
+    required String examId,
+    required String classId,
+    required String className,
+    required int submittedCount,
+    required int totalCount,
+  }) async {
+    await _notify(
+      toUserId: teacherId,
+      type: NotificationType.examClosed,
+      title: '🔒 Đề thi đã đóng',
+      body: '"$examName" lớp "$className" đã hết hạn. '
+            'Đã nộp: $submittedCount/$totalCount học sinh.',
+      data: {
+        'examId': examId,
+        'classId': classId,
+        'examName': examName,
+        'className': className,
+        'submittedCount': submittedCount,
+        'totalCount': totalCount,
+      },
+    );
+  }
+ 
+  // Đề sắp đóng — nhắc giáo viên (trước 1h)
+  Future<void> notifyExamClosingSoon({
+    required String teacherId,
+    required String examName,
+    required String examId,
+    required String classId,
+    required String className,
+    required int submittedCount,
+    required int totalCount,
+    required DateTime closeAt,
+  }) async {
+    final closeStr =
+        '${closeAt.hour.toString().padLeft(2, '0')}:'
+        '${closeAt.minute.toString().padLeft(2, '0')}';
+ 
+    await _notify(
+      toUserId: teacherId,
+      type: NotificationType.examClosingSoon,
+      title: '⚠️ Đề thi sắp đóng',
+      body: '"$examName" lớp "$className" đóng lúc $closeStr hôm nay. '
+            'Đã nộp: $submittedCount/$totalCount.',
+      data: {
+        'examId': examId,
+        'classId': classId,
+        'examName': examName,
+        'className': className,
+        'submittedCount': submittedCount,
+        'totalCount': totalCount,
+        'closeAt': closeAt.toIso8601String(),
+      },
+    );
+  } 
+  
 }
 
 
 
-//chạy app màn hình danh sách có thể báo lỗi đỏ ở Debug Console yêu cầu tạo Index. 
-  //click vào link xanh trong báo lỗi để Firebase tự động tạo Index
+
