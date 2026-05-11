@@ -111,7 +111,24 @@ class ExamController {
       'assigned_at': DateTime.now().toIso8601String(),
     });
 
-    //  Lấy danh sách học sinh trong lớp rồi gửi thông báo
+    // Gửi thông báo KHÔNG await — chạy nền, không block UI
+    _sendAssignNotifications(
+      examId: examId, examName: examName,
+      classId: classId, className: className,
+      teacherId: teacherId, closeAt: closeAt,
+    );
+    // Hàm kết thúc ngay, không chờ notification
+  }
+
+  // Hàm riêng chạy nền
+  Future<void> _sendAssignNotifications({
+    required String examId,
+    required String examName,
+    required String classId,
+    required String className,
+    required String teacherId,
+    required DateTime closeAt,
+  }) async {
     try {
       final memberSnap = await firestore.queryWhere(
         'class_members',
@@ -125,7 +142,6 @@ class ExamController {
           .toList();
 
       await Future.wait([
-        // HS nhận: đề mới
         _notif.notifyExamAssignedToStudents(
           studentIds: studentIds,
           examName: examName,
@@ -134,7 +150,6 @@ class ExamController {
           className: className,
           closeAt: closeAt,
         ),
-        // GV nhận: xác nhận giao thành công
         _notif.notifyExamAssignedConfirm(
           teacherId: teacherId,
           examName: examName,
@@ -143,7 +158,7 @@ class ExamController {
           classId: classId,
         ),
       ]);
-    } catch (_) {} // lỗi gửi thông báo không làm hỏng luồng chính
+    } catch (_) {}
   }
 
   //  thu hồi đề (rút lại đề từ một lớp, và tự động chuyển trạng thái về draft nếu không còn lớp nào được giao)

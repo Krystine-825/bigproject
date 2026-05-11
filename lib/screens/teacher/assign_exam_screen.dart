@@ -3,7 +3,7 @@ import '../../core/app_colors.dart';
 import '../../data/models/exam_model.dart';
 import '../../controllers/exam_controller.dart';
 import 'exam_bank_screen.dart';
-
+import '../../controllers/class_controller.dart'; 
 class AssignExamScreen extends StatefulWidget {
   final ExamModel exam;
   const AssignExamScreen({super.key, required this.exam});
@@ -13,12 +13,11 @@ class AssignExamScreen extends StatefulWidget {
 }
 
 class _AssignExamScreenState extends State<AssignExamScreen> {
-  final _controller = ExamController();
+  final _controller      = ExamController();
+  final _classController = ClassController(); 
 
   List<Map<String, String>> _classes         = [];
   Set<String>               _selectedIds     = {};
-  bool                      _isLoadingClasses = true;
-
   int      _durationMinutes       = 45;
   DateTime _openAt                = DateTime.now().add(const Duration(hours: 1));
   DateTime _closeAt               = DateTime.now().add(const Duration(days: 7));
@@ -26,48 +25,164 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
   bool     _showAnswerAfterSubmit = false; // ← MỚI
   bool     _isAssigning           = false;
 
+  late Stream<List<Map<String, String>>> _classStream;
+
   @override
   void initState() {
     super.initState();
-    _loadClasses();
-  }
-
-  Future<void> _loadClasses() async {
-    try {
-      final all        = await _controller.getMyClasses();
-      final assignedIds = widget.exam.assignments.map((a) => a.classId).toSet();
-      final available  = all.where((c) => !assignedIds.contains(c['id'])).toList();
-      setState(() {
-        _classes          = available;
-        _isLoadingClasses = false;
-      });
-    } catch (_) {
-      setState(() => _isLoadingClasses = false);
-    }
+    final assignedIds = widget.exam.assignments.map((a) => a.classId).toSet();
+    
+    
+    _classStream = _classController.streamMyClasses().map((classes) => classes
+        .where((c) => !assignedIds.contains(c.id))
+        .map((c) => {'id': c.id, 'name': c.name})
+        .toList());
   }
 
   bool get _allSelected =>
       _classes.isNotEmpty &&
       _classes.every((c) => _selectedIds.contains(c['id']));
 
-  void _toggleSelectAll() {
-    setState(() {
-      if (_allSelected) {
-        _selectedIds.clear();
-      } else {
-        _selectedIds = _classes.map((c) => c['id']!).toSet();
-      }
-    });
-  }
+  void _showClassSelectionDialog(List<Map<String, String>> classes) {
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setStateDialog) {
+          final allSelected = classes.isNotEmpty &&
+              classes.every((c) => _selectedIds.contains(c['id']));
 
-  void _toggleClass(String id) {
-    setState(() {
-      if (_selectedIds.contains(id)) {
-        _selectedIds.remove(id);
-      } else {
-        _selectedIds.add(id);
-      }
-    });
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20)),
+            title: const Text('Chọn lớp để giao đề',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Chọn tất cả
+                  InkWell(
+                    onTap: () {
+                      setStateDialog(() {
+                        if (allSelected) {
+                          _selectedIds.clear();
+                        } else {
+                          _selectedIds = classes.map((c) => c['id']!).toSet();
+                        }
+                      });
+                      setState(() {}); // Update parent state
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Row(children: [
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          width: 22, height: 22,
+                          decoration: BoxDecoration(
+                            color: allSelected ? AppColors.primary : Colors.transparent,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: allSelected ? AppColors.primary : AppColors.border,
+                              width: 2,
+                            ),
+                          ),
+                          child: allSelected
+                              ? const Icon(Icons.check_rounded, size: 14, color: Colors.white)
+                              : null,
+                        ),
+                        const SizedBox(width: 14),
+                        const Expanded(
+                          child: Text('Chọn tất cả',
+                              style: TextStyle(fontSize: 15,
+                                  fontWeight: FontWeight.bold, color: AppColors.textDark)),
+                        ),
+                      ]),
+                    ),
+                  ),
+                  const Divider(),
+                  // List lớp
+                  ...classes.map((cls) {
+                    final id = cls['id']!;
+                    final name = cls['name']!;
+                    final isChecked = _selectedIds.contains(id);
+                    return InkWell(
+                      onTap: () {
+                        setStateDialog(() {
+                          if (isChecked) {
+                            _selectedIds.remove(id);
+                          } else {
+                            _selectedIds.add(id);
+                          }
+                        });
+                        setState(() {}); // Update parent state
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Row(children: [
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 180),
+                            width: 22, height: 22,
+                            decoration: BoxDecoration(
+                              color: isChecked ? AppColors.primary : Colors.transparent,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: isChecked ? AppColors.primary : AppColors.border,
+                                width: 2,
+                              ),
+                            ),
+                            child: isChecked
+                                ? const Icon(Icons.check_rounded,
+                                    size: 14, color: Colors.white)
+                                : null,
+                          ),
+                          const SizedBox(width: 14),
+                          Container(
+                            width: 32, height: 32,
+                            decoration: BoxDecoration(
+                              color: AppColors.primaryLight,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(Icons.school_rounded,
+                                color: AppColors.primary, size: 18),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(name,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: isChecked
+                                      ? FontWeight.w700 : FontWeight.w500,
+                                  color: isChecked
+                                      ? AppColors.textDark : AppColors.textMedium,
+                                )),
+                          ),
+                        ]),
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Hủy'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: AppColors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Text('Xong'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
   }
 
   Future<void> _handleAssign() async {
@@ -81,29 +196,33 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
     }
 
     setState(() => _isAssigning = true);
-    final errors = <String>[];
 
     try {
-      for (final id in _selectedIds) {
-        final cls = _classes.firstWhere((c) => c['id'] == id);
-        try {
-          await _controller.assignExam(
-            examId:                widget.exam.id,
-            classId:               id,
-            className:             cls['name']!,
-            durationMinutes:       _durationMinutes,
-            openAt:                _openAt,
-            closeAt:               _closeAt,
-            maxAttempts:           _maxAttempts,
-            examName:              widget.exam.name,
-            showAnswerAfterSubmit: _showAnswerAfterSubmit, // ← MỚI
-          );
-        } catch (e) {
-          errors.add(cls['name']!);
-        }
-      }
+      // Gọi TẤT CẢ các lớp CÙNG LÚC thay vì tuần tự
+      final results = await Future.wait(
+        _selectedIds.map((id) async {
+          final cls = _classes.firstWhere((c) => c['id'] == id);
+          try {
+            await _controller.assignExam(
+              examId:                widget.exam.id,
+              classId:               id,
+              className:             cls['name']!,
+              durationMinutes:       _durationMinutes,
+              openAt:                _openAt,
+              closeAt:               _closeAt,
+              maxAttempts:           _maxAttempts,
+              examName:              widget.exam.name,
+              showAnswerAfterSubmit: _showAnswerAfterSubmit,
+            );
+            return null; // thành công
+          } catch (e) {
+            return cls['name']!; // trả về tên lớp bị lỗi
+          }
+        }),
+      );
 
       if (!mounted) return;
+      final errors = results.whereType<String>().toList();
       if (errors.isEmpty) {
         _showSuccessDialog(_selectedIds.length);
       } else {
@@ -357,148 +476,112 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
   }
 
   Widget _buildClassMultiSelect() {
-    if (_isLoadingClasses) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
-
-    if (_classes.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: const Center(
-          child: Text(
-            'Tất cả lớp đã được giao đề này',
-            style: TextStyle(color: AppColors.textMedium),
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04),
-            blurRadius: 8, offset: const Offset(0, 2))],
-      ),
-      child: Column(
-        children: [
-          InkWell(
-            onTap: _toggleSelectAll,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              child: Row(children: [
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  width: 22, height: 22,
-                  decoration: BoxDecoration(
-                    color: _allSelected ? AppColors.primary : Colors.transparent,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(
-                      color: _allSelected ? AppColors.primary : AppColors.border,
-                      width: 2,
-                    ),
-                  ),
-                  child: _allSelected
-                      ? const Icon(Icons.check_rounded, size: 14, color: Colors.white)
-                      : null,
-                ),
-                const SizedBox(width: 14),
-                const Expanded(
-                  child: Text('Chọn tất cả',
-                      style: TextStyle(fontSize: 15,
-                          fontWeight: FontWeight.bold, color: AppColors.textDark)),
-                ),
-                Text(
-                  '${_selectedIds.length}/${_classes.length} lớp',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: _selectedIds.isNotEmpty
-                        ? AppColors.primary
-                        : AppColors.textHint,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ]),
+    return StreamBuilder<List<Map<String, String>>>(
+      stream: _classStream,
+      builder: (context, snap) {
+        if (!snap.hasData) {
+          return Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04),
+                  blurRadius: 8, offset: const Offset(0, 2))],
             ),
+            child: const Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        final classes = snap.data!;
+        // Sync _classes để _handleAssign dùng được
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _classes != classes) {
+            setState(() => _classes = classes);
+          }
+        });
+
+        if (classes.isEmpty) {
+          return Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04),
+                  blurRadius: 8, offset: const Offset(0, 2))],
+            ),
+            child: const Center(
+              child: Text('Tất cả lớp đã được giao đề này',
+                  style: TextStyle(color: AppColors.textMedium)),
+            ),
+          );
+        }
+
+        final selectedClasses = classes.where((c) => _selectedIds.contains(c['id'])).toList();
+        final displayText = selectedClasses.isEmpty
+            ? 'Chọn lớp để giao đề'
+            : selectedClasses.length == 1
+                ? selectedClasses.first['name']!
+                : '${selectedClasses.length} lớp đã chọn';
+
+        return Container(
+          decoration: BoxDecoration(
+            color: AppColors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04),
+                blurRadius: 8, offset: const Offset(0, 2))],
           ),
-
-          const Divider(height: 1, indent: 16, endIndent: 16),
-
-          ...List.generate(_classes.length, (i) {
-            final cls       = _classes[i];
-            final id        = cls['id']!;
-            final name      = cls['name']!;
-            final isChecked = _selectedIds.contains(id);
-            final isLast    = i == _classes.length - 1;
-
-            return Column(
-              children: [
-                InkWell(
-                  onTap: () => _toggleClass(id),
-                  borderRadius: isLast
-                      ? const BorderRadius.vertical(bottom: Radius.circular(16))
-                      : BorderRadius.zero,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 14),
-                    child: Row(children: [
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 180),
-                        width: 22, height: 22,
-                        decoration: BoxDecoration(
-                          color: isChecked ? AppColors.primary : Colors.transparent,
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
-                            color: isChecked ? AppColors.primary : AppColors.border,
-                            width: 2,
+          child: InkWell(
+            onTap: () => _showClassSelectionDialog(classes),
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40, height: 40,
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryLight,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.school_rounded,
+                        color: AppColors.primary, size: 22),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          displayText,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: selectedClasses.isEmpty
+                                ? FontWeight.w500 : FontWeight.w700,
+                            color: selectedClasses.isEmpty
+                                ? AppColors.textHint : AppColors.textDark,
                           ),
                         ),
-                        child: isChecked
-                            ? const Icon(Icons.check_rounded,
-                                size: 14, color: Colors.white)
-                            : null,
-                      ),
-                      const SizedBox(width: 14),
-                      Container(
-                        width: 38, height: 38,
-                        decoration: BoxDecoration(
-                          color: AppColors.primaryLight,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Icon(Icons.school_rounded,
-                            color: AppColors.primary, size: 20),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(name,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: isChecked
-                                  ? FontWeight.w700 : FontWeight.w500,
-                              color: isChecked
-                                  ? AppColors.textDark : AppColors.textMedium,
-                            )),
-                      ),
-                    ]),
+                        if (selectedClasses.isNotEmpty)
+                          Text(
+                            selectedClasses.map((c) => c['name']!).join(', '),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textMedium,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                      ],
+                    ),
                   ),
-                ),
-                if (!isLast)
-                  const Divider(height: 1, indent: 52, endIndent: 16),
-              ],
-            );
-          }),
-        ],
-      ),
+                  const Icon(Icons.arrow_drop_down_rounded,
+                      color: AppColors.textHint, size: 24),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -789,7 +872,6 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
 
   Widget _buildBottomButtons() {
     final canAssign = !_isAssigning &&
-        !_isLoadingClasses &&
         _selectedIds.isNotEmpty;
 
     return Container(
