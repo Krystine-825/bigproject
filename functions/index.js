@@ -202,12 +202,8 @@ async function _callOpenAI(text, config) {
   const {
     questionCount = 10,
     questionTypes = ['multiple_choice', 'fill_in', 'true_false'],
+    targetCEFR = 'B1', // Nhận tham số mốc CEFR từ Flutter, mặc định là B1 để tránh lỗi
   } = config;
-
-  // 1 Đề có 3 phần: 40% Dễ, 40% TB, 20% Khó)
-  const easyCount   = Math.round(questionCount * 0.4);
-  const mediumCount = Math.round(questionCount * 0.4);
-  const hardCount   = questionCount - easyCount - mediumCount;
 
   // Cắt text nếu quá dài (GPT-4o context limit)
   const maxChars = 40000; 
@@ -235,14 +231,15 @@ async function _callOpenAI(text, config) {
 
   // khởi tạo Prompt 1 lần duy nhất ở ngoài để tối ưu hiệu năng
   const typeInstructions = _buildTypeInstructions(questionTypes);
-  const systemPrompt = _buildSystemPrompt(typeInstructions);
+  const systemPrompt = _buildSystemPrompt(typeInstructions, targetCEFR);
   const userPrompt   = _buildUserPrompt(
-    inputText, easyCount, mediumCount, hardCount, questionTypes
+    inputText, questionCount, questionTypes, targetCEFR
   );
 
   // kiểm tra có model có đọc hết file được extracted không
   logger.info(`[DEBUG INPUT] Tổng số ký tự nhận được từ Flutter: ${text.length}`);
   logger.info(`[DEBUG INPUT] Số ký tự thực tế nhét vào Prompt gửi AI: ${inputText.length}`);
+  logger.info(`[DEBUG INPUT] Mốc CEFR được chọn: ${targetCEFR}`);
   logger.info(`[DEBUG INPUT] 50 ký tự đầu: "${inputText.slice(0, 50)}..."`);
   logger.info(`[DEBUG INPUT] 50 ký tự cuối: "...${inputText.slice(-50)}"`);
 
@@ -283,12 +280,8 @@ async function _callOpenAI(text, config) {
         throw new Error('OpenAI trả về dữ liệu không đúng định dạng (Thiếu mảng questions).');
       }
 
-      // sắp xếp câu hỏi từ Dễ -> Trung Bình -> Khó để tạo 3 phần rõ rệt
-      const diffOrder = { 'easy': 1, 'medium': 2, 'hard': 3 };
-      const sortedQuestions = parsed.questions.sort((a, b) => diffOrder[a.difficulty] - diffOrder[b.difficulty]);
-
-      // đánh số id từ 1 sau khi đã sắp xếp và TRẢ VỀ KẾT QUẢ THÀNH CÔNG
-      return sortedQuestions.map((q, i) => ({ ...q, id: i + 1 }));
+      // Đánh số id từ 1 và TRẢ VỀ KẾT QUẢ THÀNH CÔNG (Không cần sort theo Dễ/TB/Khó nữa)
+      return parsed.questions.map((q, i) => ({ ...q, id: i + 1 }));
 
     } catch (error) {
       logger.warn(`[OPENAI ERROR] Lỗi ở lần thử thứ ${attempt}: ${error.message}`);
@@ -307,32 +300,28 @@ async function _callOpenAI(text, config) {
   }
 }
 
-// prompt hệ thống
-function _buildSystemPrompt(typeInstructions) {
-  return `You are an expert English language teacher creating exam questions from provided text.
+// prompt hệ thống đã siết chặt luật "Câu hỏi độc lập"
+function _buildSystemPrompt(typeInstructions, targetCEFR) {
+  return `You are an expert English language teacher and exam designer. Your task is to create an English exam strictly targeted at the **${targetCEFR}** CEFR level based on the provided text.
 
-STRICT RULES:
-- Generate questions ONLY based on the provided text content.
-- All questions must test English language skills: grammar, vocabulary, comprehension, usage.
-- Do NOT create math, science, or formula-based questions.
-- Do NOT translate or use Vietnamese in any part of the output.
-- Every question must be answerable directly from the provided text.
+CRITICAL RULES (STRICTLY ENFORCED):
+1. 100% SELF-CONTAINED QUESTIONS: The student will NOT see the original text. EVERY question MUST provide full context within itself so it makes perfect sense on its own.
+2. NO EXTERNAL REFERENCES: NEVER use phrases like "according to the passage", "in paragraph 2", or "for Question 14". 
+3. ADAPT, DON'T COPY: If you extract a sentence from a reading passage to test vocabulary or grammar, you MUST rewrite it into a standalone, logical sentence.
+4. NO READING COMPREHENSION: DO NOT test facts from stories or articles (e.g., "Singapore is a dirty city"). Test ONLY general English Grammar and Vocabulary rules.
+5. TARGET LEVEL: All questions, correct answers, and distractors MUST strictly align with the ${targetCEFR} CEFR level.
+6. LANGUAGE: The entire output MUST be 100% in English. NO Vietnamese.
 
-DIFFICULTY GUIDELINES:
-- Easy: Basic factual recall and direct vocabulary identification from the text.
-- Medium: Understanding main ideas, simple inferences, and grammar application.
-- Hard: Complex inferences, analyzing author's tone, or deducing the meaning of advanced vocabulary from context.
-
-OUTPUT: Return a valid JSON object with this exact structure:
+OUTPUT FORMAT:
+Return a valid JSON object strictly matching this structure:
 {
   "questions": [
     {
       "type": "multiple_choice" | "fill_in" | "true_false",
-      "difficulty": "easy" | "medium" | "hard",
       "question": "string",
-      "options": ["A. ...", "B. ...", "C. ...", "D. ..."],  // For multiple_choice ONLY. MUST include "A.", "B.", "C.", "D." prefixes.
-      "answer": "string",  // For MC: strictly "A", "B", "C", or "D". For fill_in: the exact word/phrase. For T/F: "True" or "False".
-      "explanation": "Brief explanation in English detailing why this answer is correct based on the text (1-2 sentences)."
+      "options": ["A. ...", "B. ...", "C. ...", "D. ..."], // For multiple_choice ONLY. MUST include "A.", "B.", "C.", "D." prefixes.
+      "answer": "string", 
+      "explanation": "A concise explanation of the grammar rule or vocabulary usage."
     }
   ]
 }
@@ -341,31 +330,30 @@ ${typeInstructions}`;
 }
 
 
-// hướng dẫn theo từng loại câu hỏi 
+// hướng dẫn theo từng loại câu hỏi đã được thiết kế lại
 function _buildTypeInstructions(types) {
   const instructions = [];
 
   if (types.includes('multiple_choice')) {
     instructions.push(`MULTIPLE CHOICE rules:
-- Provide exactly 4 options (A, B, C, D)
-- Only one correct answer
-- Distractors must be plausible but clearly wrong
-- Test grammar, vocabulary, or reading comprehension`);
+- Provide exactly 4 options (A, B, C, D).
+- Provide a COMPLETE sentence with a blank "___" to test grammar/vocabulary, OR provide a standalone sentence and ask for a synonym.
+- NEVER ask "Which word fits in Question 14?". You must write the full sentence containing the blank.`);
   }
 
   if (types.includes('fill_in')) {
     instructions.push(`FILL IN THE BLANK rules:
-- Use "___" to mark the blank in the question
-- Answer is a single word or short phrase (max 4 words)
-- Blank should test a key vocabulary word or grammar structure
-- Context must make the answer clear`);
+- Use "___" to mark the blank in a COMPLETE, self-contained sentence.
+- The sentence MUST have enough context clues for the student to deduce the answer logically without needing any external text.
+- Answer is a single word or short phrase (max 4 words).`);
   }
 
   if (types.includes('true_false')) {
-    instructions.push(`TRUE/FALSE rules:
-- Statement must be unambiguously True or False based on the text
-- Mix True and False answers roughly equally
-- Avoid trivially obvious statements`);
+    instructions.push(`TRUE/FALSE rules (GRAMMAR/VOCAB ONLY):
+- DO NOT test facts from the source text (e.g., "John went to the store" -> True/False). The student hasn't read the text!
+- INSTEAD, test grammar rules, vocabulary definitions, or spelling.
+- Example of a GOOD True/False question: "The word 'rapidly' functions as an adjective in English." (Answer: False)
+- Example of a GOOD True/False question: "In the sentence 'She has went to Paris', the verb tense is grammatically correct." (Answer: False)`);
   }
 
   return instructions.join('\n\n');
@@ -373,26 +361,26 @@ function _buildTypeInstructions(types) {
 
 
 // prompt người dùng
-function _buildUserPrompt(text, easyCount, mediumCount, hardCount, types) {
+function _buildUserPrompt(text, questionCount, types, targetCEFR) {
   const typesLabel = types.map(t => ({
     multiple_choice: 'multiple_choice',
     fill_in:         'fill_in',
     true_false:      'true_false',
   }[t])).join(', ');
 
-  return `Create English exam questions based strictly on the text provided below.
+  return `Create a ${targetCEFR} English exam based strictly on the text provided below.
 
 TASK REQUIREMENTS:
-1. Difficulty Quotas: You MUST generate EXACTLY ${easyCount} Easy, ${mediumCount} Medium, and ${hardCount} Hard questions.
-2. Permitted Types: Use ONLY these formats: ${typesLabel}.
-3. Variety: Ensure a mix of permitted types within each difficulty level, but meeting the exact Difficulty Quotas is your highest priority.
+1. Level: ALL questions MUST be exactly at the ${targetCEFR} level.
+2. Quantity: Generate EXACTLY ${questionCount} questions.
+3. Permitted Types: Use ONLY these formats: ${typesLabel}.
 
 TEXT TO USE:
 """
 ${text}
 """
 
-CRITICAL INSTRUCTION: Your final JSON array MUST contain EXACTLY ${easyCount + mediumCount + hardCount} items. Do not stop until you reach this exact number. Return JSON only.`;
+Return EXACTLY ${questionCount} items in JSON format. Do not stop until you reach this exact number.`;
 }
 
 

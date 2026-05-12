@@ -27,6 +27,7 @@ class _CreateExamScreenState extends State<CreateExamScreen> {
   bool    _fileIsValid  = false;
 
   int     _questionCount = 10; 
+  String  _cefrLevel     = 'B1'; // 💡 MỚI: Thêm biến lưu mốc CEFR
   bool    _isGenerating  = false;
 
   @override
@@ -172,6 +173,7 @@ class _CreateExamScreenState extends State<CreateExamScreen> {
         extractedText: _extractedText!,
         fileName: _fileName!,
         questionCount: _questionCount,
+        cefrLevel: _cefrLevel, // 💡 MỚI: Truyền mốc CEFR lên Server
       );
       
       final finalExam = exam.copyWith(name: name);
@@ -386,6 +388,35 @@ class _CreateExamScreenState extends State<CreateExamScreen> {
           ),
           const Divider(height: 1),
 
+          // 💡 MỚI: Mốc CEFR
+          _fieldRow(
+            label: 'Trình độ CEFR',
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF5F7F8),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: _cefrLevel,
+                  isExpanded: true,
+                  style: const TextStyle(fontSize: 14, color: AppColors.textDark),
+                  items: const [
+                    DropdownMenuItem(value: 'A1', child: Text('A1 - Sơ cấp')),
+                    DropdownMenuItem(value: 'A2', child: Text('A2 - Cơ bản')),
+                    DropdownMenuItem(value: 'B1', child: Text('B1 - Trung cấp')),
+                    DropdownMenuItem(value: 'B2', child: Text('B2 - Trung cao cấp')),
+                    DropdownMenuItem(value: 'C1', child: Text('C1 - Cao cấp')),
+                    DropdownMenuItem(value: 'C2', child: Text('C2 - Thành thạo')),
+                  ],
+                  onChanged: (v) => setState(() => _cefrLevel = v!),
+                ),
+              ),
+            ),
+          ),
+          const Divider(height: 1),
+
           // Số câu
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
@@ -543,9 +574,8 @@ class _CreateExamScreenState extends State<CreateExamScreen> {
       return 'Bạn đã sử dụng hết lượt tạo đề bằng AI hôm nay. Vui lòng quay lại vào ngày mai nhé!';
     }
     
-    // ĐÃ SỬA: Hiển thị chính xác thông báo lỗi từ Backend gửi về
     if (errorString.contains('invalid-argument')) {
-      return error.toString().replaceAll(RegExp(r'\[.*?\] '), ''); // Xóa cụm [firebase_functions/...] cho đẹp
+      return error.toString().replaceAll(RegExp(r'\[.*?\] '), ''); 
     }
 
     if (errorString.contains('network') || errorString.contains('socket')) {

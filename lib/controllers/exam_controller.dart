@@ -23,6 +23,7 @@ class ExamController {
     required String extractedText,
     required String fileName,
     required int questionCount,
+    required String cefrLevel,
   }) async {
     final teacherId = auth.currentUid;
     if (teacherId == null) throw Exception('Người dùng chưa đăng nhập');
@@ -43,6 +44,7 @@ class ExamController {
       'config': {
         'questionCount': questionCount,
         'questionTypes': ['multiple_choice', 'fill_in', 'true_false'],
+        'targetCEFR': cefrLevel,
       },
     });
 
@@ -111,7 +113,24 @@ class ExamController {
       'assigned_at': DateTime.now().toIso8601String(),
     });
 
-    //  Lấy danh sách học sinh trong lớp rồi gửi thông báo
+    // Gửi thông báo KHÔNG await — chạy nền, không block UI
+    _sendAssignNotifications(
+      examId: examId, examName: examName,
+      classId: classId, className: className,
+      teacherId: teacherId, closeAt: closeAt,
+    );
+    // Hàm kết thúc ngay, không chờ notification
+  }
+
+  // Hàm riêng chạy nền
+  Future<void> _sendAssignNotifications({
+    required String examId,
+    required String examName,
+    required String classId,
+    required String className,
+    required String teacherId,
+    required DateTime closeAt,
+  }) async {
     try {
       final memberSnap = await firestore.queryWhere(
         'class_members',
@@ -125,7 +144,7 @@ class ExamController {
           .toList();
 
       await Future.wait([
-        // HS nhận: đề mới
+
         _notif.notifyExamAssignedToStudents(
           studentIds: studentIds,
           examName: examName,
@@ -134,7 +153,7 @@ class ExamController {
           className: className,
           closeAt: closeAt,
         ),
-        // GV nhận: xác nhận giao thành công
+
         _notif.notifyExamAssignedConfirm(
           teacherId: teacherId,
           examName: examName,
@@ -143,7 +162,7 @@ class ExamController {
           classId: classId,
         ),
       ]);
-    } catch (_) {} // lỗi gửi thông báo không làm hỏng luồng chính
+    } catch (_) {}
   }
 
   //  thu hồi đề (rút lại đề từ một lớp, và tự động chuyển trạng thái về draft nếu không còn lớp nào được giao)
@@ -178,63 +197,22 @@ class ExamController {
 
   //xóa dề
 
-  // xóa đề thi và toàn bộ bài nộp 
+  // xóa đề thi (Chỉ áp dụng cho đề chưa giao)
   Future<void> deleteExam(String examId) async {
-    // gửi thông báo cho học sinh trước khi xóa
-    try {
-      final examDoc = await firestore.getDocument('exams', examId);
-      if (examDoc.exists && examDoc.data() != null) {
-        final d          = examDoc.data()!;
-        final examName   = (d['name'] ?? d['title'] ?? 'Đề thi') as String;
-        final assignedIds = List<String>.from(d['assigned_class_ids'] ?? []);
+    final examDoc = await firestore.getDocument('exams', examId);
+    if (examDoc.exists && examDoc.data() != null) {
+      final d = examDoc.data()!;
+      final assignedIds = List<String>.from(d['assigned_class_ids'] ?? []);
 
-        for (final classId in assignedIds) {
-          final memberSnap = await firestore.queryWhere(
-            'class_members',
-            field: 'class_id',
-            isEqualTo: classId,
-          );
-          final studentIds = memberSnap.docs
-              .where((doc) => doc.data()['status'] == 'active')
-              .map((doc) => (doc.data()['student_id'] as String?) ?? '')
-              .where((id) => id.isNotEmpty)
-              .toList();
-
-          if (studentIds.isNotEmpty) {
-            final classDoc = await firestore.getDocument('classes', classId);
-            final className =
-                (classDoc.data()?['name'] as String?) ?? 'Lớp học';
-
-            await _notif.notifyExamDeletedToStudents(
-              studentIds: studentIds,
-              examName: examName,
-              classId: classId,
-              className: className,
-            );
-          }
-        }
+      // Nếu danh sách lớp đã giao không rỗng, báo lỗi ngay!
+      if (assignedIds.isNotEmpty) {
+        throw Exception('Không thể xóa đề thi đang được giao. Vui lòng thu hồi đề khỏi các lớp trước khi xóa.');
       }
-    } catch (_) {} // lỗi thông báo thì vẫn tiếp tục xóa
-
-    // gom tất cả lệnh xóa vào một Batch để đảm bảo an toàn
-    final batch = FirebaseFirestore.instance.batch();
-
-    // tìm và đưa toàn bộ bài nộp (submissions) của đề này vào danh sách xóa
-    final subSnap = await firestore.queryWhere(
-      'submissions',
-      field: 'exam_id',
-      isEqualTo: examId,
-    );
-    for (final doc in subSnap.docs) {
-      batch.delete(doc.reference);
     }
 
-    // đưa đề thi gốc vào danh sách xóa
+    // Nếu đề chưa giao, tiến hành xóa đề thi gốc
     final examRef = FirebaseFirestore.instance.collection('exams').doc(examId);
-    batch.delete(examRef);
-
-    // thực thi xóa hàng loạt
-    await batch.commit();
+    await examRef.delete();
   }
 
 
@@ -295,9 +273,4 @@ class ExamController {
             });
         });
   }
-
-
-
-
-
 }

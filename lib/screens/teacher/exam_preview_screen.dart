@@ -4,7 +4,6 @@ import '../../data/models/exam_model.dart';
 import '../../data/models/question_model.dart';
 import '../../controllers/exam_controller.dart';
 import 'assign_exam_screen.dart';
-import 'exam_detail_screen.dart';
 
 class ExamPreviewScreen extends StatefulWidget {
   final ExamModel exam;
@@ -25,13 +24,11 @@ class _ExamPreviewScreenState extends State<ExamPreviewScreen> {
     _exam = widget.exam;
   }
 
-  //lưu đề
   Future<void> _handleSave() async {
     setState(() => _isSaving = true);
     try {
       await _controller.saveExam(_exam);
       if (!mounted) return;
-      // Sau khi lưu → chuyển sang màn giao đề
       Navigator.pushReplacement(context, MaterialPageRoute(
         builder: (_) => AssignExamScreen(exam: _exam),
       ));
@@ -48,7 +45,6 @@ class _ExamPreviewScreenState extends State<ExamPreviewScreen> {
     }
   }
 
-  //sửa câu hỏi
   void _editQuestion(int index) {
     final q = _exam.questions[index];
     showModalBottomSheet(
@@ -68,7 +64,6 @@ class _ExamPreviewScreenState extends State<ExamPreviewScreen> {
     );
   }
 
-  //xóa câu hỏi
   void _deleteQuestion(int index) {
     showDialog(
       context: context,
@@ -87,7 +82,6 @@ class _ExamPreviewScreenState extends State<ExamPreviewScreen> {
               setState(() {
                 final list = List<QuestionModel>.from(_exam.questions)
                   ..removeAt(index);
-                // Đánh lại id
                 final renumbered = list.asMap().entries
                     .map((e) => e.value.copyWith(id: e.key + 1))
                     .toList();
@@ -103,12 +97,10 @@ class _ExamPreviewScreenState extends State<ExamPreviewScreen> {
     );
   }
 
- //thêm câu hỏi
   void _addQuestion() {
     final newQ = QuestionModel(
       id:          _exam.questions.length + 1,
       type:        'multiple_choice',
-      difficulty:  'medium',
       question:    '',
       options:     ['A. ', 'B. ', 'C. ', 'D. '],
       answer:      'A',
@@ -132,7 +124,6 @@ class _ExamPreviewScreenState extends State<ExamPreviewScreen> {
     );
   }
 
- 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -145,7 +136,7 @@ class _ExamPreviewScreenState extends State<ExamPreviewScreen> {
             Expanded(
               child: ListView.builder(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
-                itemCount: _exam.questions.length + 1, // +1 cho nút thêm
+                itemCount: _exam.questions.length + 1,
                 itemBuilder: (_, i) {
                   if (i == _exam.questions.length) return _buildAddButton();
                   return _buildQuestionCard(_exam.questions[i], i);
@@ -159,7 +150,6 @@ class _ExamPreviewScreenState extends State<ExamPreviewScreen> {
     );
   }
 
-  
   Widget _buildHeader() {
     return Container(
       color: AppColors.white,
@@ -184,7 +174,6 @@ class _ExamPreviewScreenState extends State<ExamPreviewScreen> {
     );
   }
 
-  
   Widget _buildSummaryBar() {
     final mc = _exam.questions.where((q) => q.type == 'multiple_choice').length;
     final fi = _exam.questions.where((q) => q.type == 'fill_in').length;
@@ -212,13 +201,7 @@ class _ExamPreviewScreenState extends State<ExamPreviewScreen> {
         fontWeight: FontWeight.w600, color: color)),
   );
 
- 
   Widget _buildQuestionCard(QuestionModel q, int index) {
-    final diffColor = q.difficulty == 'easy'
-        ? Colors.green
-        : q.difficulty == 'medium' ? Colors.orange : Colors.red;
-    final diffLabel = q.difficulty == 'easy' ? 'Dễ'
-        : q.difficulty == 'medium' ? 'Trung bình' : 'Khó';
     final typeLabel = q.type == 'multiple_choice' ? 'Trắc nghiệm'
         : q.type == 'fill_in' ? 'Điền từ' : 'Đúng / Sai';
 
@@ -233,7 +216,6 @@ class _ExamPreviewScreenState extends State<ExamPreviewScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Top row: số câu + badges + actions ──
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 8, 0),
             child: Row(children: [
@@ -252,16 +234,6 @@ class _ExamPreviewScreenState extends State<ExamPreviewScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: diffColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(diffLabel, style: TextStyle(fontSize: 11,
-                    fontWeight: FontWeight.w600, color: diffColor)),
-              ),
-              const SizedBox(width: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
                   color: AppColors.primaryLight,
                   borderRadius: BorderRadius.circular(6),
                 ),
@@ -270,7 +242,6 @@ class _ExamPreviewScreenState extends State<ExamPreviewScreen> {
                     color: AppColors.primary)),
               ),
               const Spacer(),
-              // Nút sửa
               IconButton(
                 onPressed: () => _editQuestion(index),
                 icon: const Icon(Icons.edit_outlined, size: 18),
@@ -278,7 +249,6 @@ class _ExamPreviewScreenState extends State<ExamPreviewScreen> {
                 visualDensity: VisualDensity.compact,
                 tooltip: 'Sửa câu hỏi',
               ),
-              // Nút xoá
               IconButton(
                 onPressed: () => _deleteQuestion(index),
                 icon: const Icon(Icons.delete_outline_rounded, size: 18),
@@ -288,8 +258,6 @@ class _ExamPreviewScreenState extends State<ExamPreviewScreen> {
               ),
             ]),
           ),
-
-        //nội dung câu hỏi
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
             child: Text(q.question.isEmpty ? '(Chưa có nội dung)' : q.question,
@@ -301,8 +269,6 @@ class _ExamPreviewScreenState extends State<ExamPreviewScreen> {
                       ? FontStyle.italic : FontStyle.normal,
                 )),
           ),
-
-         
           if (q.type == 'multiple_choice' &&
               q.options != null && q.options!.isNotEmpty)
             Padding(
@@ -344,8 +310,6 @@ class _ExamPreviewScreenState extends State<ExamPreviewScreen> {
                 }).toList(),
               ),
             ),
-
-          // ── Đáp án (fill_in / true_false) ──
           if (q.type != 'multiple_choice')
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
@@ -359,8 +323,6 @@ class _ExamPreviewScreenState extends State<ExamPreviewScreen> {
                         fontWeight: FontWeight.w600)),
               ]),
             ),
-
-          // ── Giải thích ──
           if (q.explanation.isNotEmpty)
             Container(
               margin: const EdgeInsets.fromLTRB(16, 10, 16, 0),
@@ -381,13 +343,11 @@ class _ExamPreviewScreenState extends State<ExamPreviewScreen> {
                 ],
               ),
             ),
-
           const SizedBox(height: 14),
         ],
       ),
     );
   }
-
 
   Widget _buildAddButton() {
     return GestureDetector(
@@ -418,7 +378,6 @@ class _ExamPreviewScreenState extends State<ExamPreviewScreen> {
     );
   }
 
- 
   Widget _buildSaveButton() {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
@@ -463,7 +422,6 @@ class _ExamPreviewScreenState extends State<ExamPreviewScreen> {
   }
 }
 
-
 class _EditQuestionSheet extends StatefulWidget {
   final QuestionModel question;
   final bool isNew;
@@ -485,7 +443,6 @@ class _EditQuestionSheetState extends State<_EditQuestionSheet> {
   late TextEditingController _explanationCtrl;
   late List<TextEditingController> _optionCtrls;
   late String _type;
-  late String _difficulty;
   late String _answer;
 
   @override
@@ -493,7 +450,6 @@ class _EditQuestionSheetState extends State<_EditQuestionSheet> {
     super.initState();
     final q = widget.question;
     _type        = q.type;
-    _difficulty  = q.difficulty;
     _answer      = q.answer;
     _questionCtrl    = TextEditingController(text: q.question);
     _answerCtrl      = TextEditingController(text: q.answer);
@@ -524,7 +480,6 @@ class _EditQuestionSheetState extends State<_EditQuestionSheet> {
       answer:      _type == 'multiple_choice' ? _answer : _answerCtrl.text.trim(),
       explanation: _explanationCtrl.text.trim(),
       type:        _type,
-      difficulty:  _difficulty,
       options:     opts,
     );
     widget.onSave(updated);
@@ -545,7 +500,6 @@ class _EditQuestionSheetState extends State<_EditQuestionSheet> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Handle
             Center(child: Container(width: 40, height: 4,
                 decoration: BoxDecoration(color: AppColors.border,
                     borderRadius: BorderRadius.circular(2)))),
@@ -556,34 +510,23 @@ class _EditQuestionSheetState extends State<_EditQuestionSheet> {
                     fontWeight: FontWeight.bold, color: AppColors.textDark)),
             const SizedBox(height: 16),
 
-            // Loại + độ khó
-            Row(children: [
-              Expanded(child: _dropDown('Loại', _type, {
-                'multiple_choice': 'Trắc nghiệm',
-                'fill_in':         'Điền từ',
-                'true_false':      'Đúng/Sai',
-              }, (v) => setState(() {
-                _type = v!;
-                if (_type == 'true_false') _answer = 'True';
-                if (_type == 'multiple_choice') _answer = 'A';
-              }))),
-              const SizedBox(width: 12),
-              Expanded(child: _dropDown('Độ khó', _difficulty, {
-                'easy':   'Dễ',
-                'medium': 'Trung bình',
-                'hard':   'Khó',
-              }, (v) => setState(() => _difficulty = v!))),
-            ]),
+            _dropDown('Loại câu hỏi', _type, {
+              'multiple_choice': 'Trắc nghiệm',
+              'fill_in':         'Điền từ',
+              'true_false':      'Đúng/Sai',
+            }, (v) => setState(() {
+              _type = v!;
+              if (_type == 'true_false') _answer = 'True';
+              if (_type == 'multiple_choice') _answer = 'A';
+            })),
             const SizedBox(height: 14),
 
-            // Nội dung câu hỏi
             _label('Câu hỏi'),
             const SizedBox(height: 6),
             _textField(_questionCtrl, maxLines: 3,
                 hint: 'Nhập nội dung câu hỏi...'),
             const SizedBox(height: 14),
 
-            // Options (chỉ MC)
             if (_type == 'multiple_choice') ...[
               _label('Các lựa chọn (đánh dấu đáp án đúng)'),
               const SizedBox(height: 6),
@@ -626,14 +569,12 @@ class _EditQuestionSheetState extends State<_EditQuestionSheet> {
               }),
             ],
 
-            // Đáp án (fill_in)
             if (_type == 'fill_in') ...[
               _label('Đáp án'),
               const SizedBox(height: 6),
               _textField(_answerCtrl, hint: 'Từ hoặc cụm từ đúng'),
             ],
 
-            // Đáp án (true_false)
             if (_type == 'true_false') ...[
               _label('Đáp án'),
               const SizedBox(height: 6),

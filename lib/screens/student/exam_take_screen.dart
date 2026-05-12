@@ -264,8 +264,7 @@ class _ExamTakeScreenState extends State<ExamTakeScreen> {
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
-              _difficultyBadge(q.difficulty),
+              // Đã xóa huy hiệu độ khó ở đây
             ],
           ),
           const SizedBox(height: 16),
@@ -291,27 +290,6 @@ class _ExamTakeScreenState extends State<ExamTakeScreen> {
           else
             _buildFillInField(q),
         ],
-      ),
-    );
-  }
-
-  Widget _difficultyBadge(String difficulty) {
-    final map = {
-      'easy': ('Dễ', Colors.green),
-      'medium': ('Trung bình', Colors.orange),
-      'hard': ('Khó', Colors.red),
-    };
-    final info = map[difficulty.toLowerCase()] ?? ('Trung bình', Colors.orange);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: info.$2.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        info.$1,
-        style: TextStyle(
-            fontSize: 11, fontWeight: FontWeight.w600, color: info.$2),
       ),
     );
   }
@@ -631,7 +609,7 @@ class _ExamTakeScreenState extends State<ExamTakeScreen> {
     );
   }
 
-  // ── Màn hình kết quả ──────────────────────────────────────────────────────
+  // Màn hình kết quả 
   Widget _buildResultScreen() {
     final result = _result!;
     final percentage = result.totalCount > 0
@@ -766,7 +744,7 @@ class _ExamTakeScreenState extends State<ExamTakeScreen> {
               ),
               const SizedBox(height: 32),
 
-              // ← MỚI: nút "Xem đáp án" nếu giáo viên cho phép
+              // nút "Xem đáp án" nếu giáo viên cho phép
               ..._buildResultButtons(),
             ],
           ),
@@ -775,7 +753,7 @@ class _ExamTakeScreenState extends State<ExamTakeScreen> {
     );
   }
 
-  // ← MỚI: trả về danh sách nút dưới màn hình kết quả
+  // trả về danh sách nút dưới màn hình kết quả
   List<Widget> _buildResultButtons() {
     // Lấy assignment tương ứng với classId đang thi
     ExamAssignment? assignment;

@@ -284,8 +284,6 @@ class _ExamReviewScreenState extends State<ExamReviewScreen> {
                             : Colors.red,
                   ),
                 ),
-                const SizedBox(width: 8),
-                _difficultyBadge(q.difficulty),
                 const Spacer(),
                 _typeBadge(q.type),
               ],
@@ -305,7 +303,7 @@ class _ExamReviewScreenState extends State<ExamReviewScreen> {
             ),
           ),
 
-          // ── Options / Answer section ──────────────────────────────────
+          // Options / Answer section
           if (q.type == 'multiple_choice' && q.options != null)
             ..._buildMCOptions(q)
           else if (q.type == 'true_false')
@@ -595,29 +593,6 @@ class _ExamReviewScreenState extends State<ExamReviewScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-
-  Widget _difficultyBadge(String difficulty) {
-    final map = {
-      'easy': ('Dễ', Colors.green),
-      'medium': ('Trung bình', Colors.orange),
-      'hard': ('Khó', Colors.red),
-    };
-    final info =
-        map[difficulty.toLowerCase()] ?? ('Trung bình', Colors.orange);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: info.$2.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        info.$1,
-        style: TextStyle(
-            fontSize: 10, fontWeight: FontWeight.w600, color: info.$2),
       ),
     );
   }

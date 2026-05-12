@@ -231,19 +231,23 @@ class _ExamBankScreenState extends State<ExamBankScreen> {
                             color: isAssigned ? AppColors.success : AppColors.textHint),
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    // NÚT XÓA ĐỀ (THÙNG RÁC ĐỎ)
-                    GestureDetector(
-                      onTap: () => _confirmDelete(exam),
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.red.withOpacity(0.08),
-                          borderRadius: BorderRadius.circular(10),
+                    
+                    //Chỉ render nút xóa nếu đề thi chưa giao
+                    if (!isAssigned) ...[
+                      const SizedBox(height: 12),
+                      // nút xóa 
+                      GestureDetector(
+                        onTap: () => _confirmDelete(exam),
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 20),
                         ),
-                        child: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 20),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ],
