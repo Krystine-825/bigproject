@@ -441,10 +441,16 @@ class _StudentClassDetailScreenState extends State<StudentClassDetailScreen> {
                         const Icon(Icons.check_rounded,
                             size: 13, color: AppColors.success),
                         const SizedBox(width: 4),
-                        Text(
-                          '${submission.correctCount}/${submission.totalCount} câu đúng',
-                          style: const TextStyle(
-                              fontSize: 12, color: AppColors.success),
+                        FutureBuilder<int>(
+                          future: submissionController.getAttemptCount(exam.id, widget.classId),
+                          builder: (context, attemptSnap) {
+                            final attemptCount = attemptSnap.data ?? 1;
+                            return Text(
+                              '${submission.correctCount}/${submission.totalCount} câu đúng • Lần ${submission.attemptNumber}/${assignment.maxAttempts}',
+                              style: const TextStyle(
+                                  fontSize: 12, color: AppColors.success),
+                            );
+                          },
                         ),
                       ],
                     ),
@@ -495,15 +501,60 @@ class _StudentClassDetailScreenState extends State<StudentClassDetailScreen> {
         );
       }
 
-      return Row(children: const [
-        Icon(Icons.task_alt_rounded, color: AppColors.success, size: 18),
-        SizedBox(width: 4),
-        Text('Đã nộp',
-            style: TextStyle(
-                color: AppColors.success,
-                fontWeight: FontWeight.w600,
-                fontSize: 13)),
-      ]);
+      // Kiểm tra xem có thể làm lại không
+      return FutureBuilder<int>(
+        future: submissionController.getAttemptCount(exam.id, widget.classId),
+        builder: (context, attemptSnap) {
+          final attemptCount = attemptSnap.data ?? 0;
+          final canRetake = assignment.maxAttempts > 1 && attemptCount < assignment.maxAttempts && isOpen;
+
+          if (canRetake) {
+            return Row(
+              children: [
+                ElevatedButton.icon(
+                  onPressed: () => _startExam(exam),
+                  icon: const Icon(Icons.refresh_rounded, size: 16),
+                  label: Text('Làm lại (${attemptCount}/${assignment.maxAttempts})'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30)),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    textStyle: const TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  onPressed: () => _openReview(exam, submission),
+                  icon: const Icon(Icons.visibility_rounded, size: 16),
+                  label: const Text('Xem đáp án'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30)),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    textStyle: const TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            );
+          }
+
+          return Row(children: const [
+            Icon(Icons.task_alt_rounded, color: AppColors.success, size: 18),
+            SizedBox(width: 4),
+            Text('Đã nộp',
+                style: TextStyle(
+                    color: AppColors.success,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13)),
+          ]);
+        },
+      );
     }
 
     if (isOverdue) {
