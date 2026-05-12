@@ -6,7 +6,6 @@ import '../../data/models/question_model.dart';
 import '../../data/models/submission_model.dart';
 import '../../controllers/submission_controller.dart';
 import 'exam_review_screen.dart';
-import 'list_exam.dart';
 
 class ExamTakeScreen extends StatefulWidget {
   final ExamModel exam;
@@ -267,11 +266,7 @@ class _ExamTakeScreenState extends State<ExamTakeScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: () => Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(
-                        builder: (_) => const ListExamsScreen()),
-                    (route) => route.isFirst,
-                  ),
+                  onPressed: () => Navigator.of(context).pop(),
                   icon: const Icon(Icons.arrow_back_rounded),
                   label: const Text('Về danh sách đề thi',
                       style: TextStyle(fontSize: 16)),
@@ -990,10 +985,7 @@ class _ExamTakeScreenState extends State<ExamTakeScreen> {
       SizedBox(
         width: double.infinity,
         child: ElevatedButton.icon(
-          onPressed: () => Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => const ListExamsScreen()),
-            (route) => route.isFirst,
-          ),
+          onPressed: () => Navigator.of(context).pop(),
           icon: const Icon(Icons.arrow_back_rounded),
           label: const Text('Về danh sách đề thi',
               style: TextStyle(fontSize: 16)),

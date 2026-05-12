@@ -3,6 +3,7 @@ import '../../core/app_colors.dart';
 import '../../widgets/common/custom_button_nav.dart';
 import '../../data/models/exam_model.dart';
 import '../../controllers/exam_controller.dart';
+import '../../data/services/class_cache_service.dart';
 import 'exam_detail_screen.dart';
 
 class ExamBankScreen extends StatefulWidget {
@@ -26,6 +27,9 @@ class _ExamBankScreenState extends State<ExamBankScreen> {
     super.initState();
     // Khởi tạo Stream 1 lần duy nhất để tránh load lại khi gõ tìm kiếm
     _examStream = _controller.streamMyExams();
+    // Warm cache lớp học ngay khi màn này load —
+    // khi user bấm vào đề bất kỳ, AssignExamScreen sẽ hiển thị danh sách lớp tức thì
+    ClassCacheService.instance.warmUp();
   }
 
   // xác nhận và thực hiện xóa đề 
@@ -124,7 +128,8 @@ class _ExamBankScreenState extends State<ExamBankScreen> {
             child: StreamBuilder<List<ExamModel>>(
               stream: _examStream, 
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
+                // Chỉ show spinner lần đầu chưa có data — không show khi Firestore push update mới
+                if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator());
                 }
 

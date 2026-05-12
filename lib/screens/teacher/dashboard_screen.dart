@@ -24,9 +24,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final _classController = ClassController();
   final _examController = ExamController();
 
+  // Khởi tạo 1 lần duy nhất — tránh tạo stream mới mỗi lần rebuild
+  late final Stream<List<ClassModel>> _classStream;
+  late final Stream<List<ExamModel>> _examStream;
+
   @override
   void initState() {
     super.initState();
+    _classStream = _classController.streamMyClasses();
+    _examStream  = _examController.streamMyExams();
     _loadName();
   }
 
@@ -43,18 +49,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: Column(
           children: [
             _header(),
+            _statsSection(),
+            _classesSection(),
             Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  children: [
-                    _statsSection(),
-                    _classesSection(),
-                    _activitiesSection(),
-                    const SizedBox(height: 24),
-                  ],
-                ),
-              ),
+              child: _activitiesSection(),
             ),
+            const SizedBox(height: 24),
           ],
         ),
       ),
@@ -141,10 +141,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
       child: StreamBuilder<List<ClassModel>>(
-        stream: _classController.streamMyClasses(),
+        stream: _classStream,
         builder: (context, classSnap) {
           return StreamBuilder<List<ExamModel>>(
-            stream: _examController.streamMyExams(),
+            stream: _examStream,
             builder: (context, examSnap) {
               final classes = classSnap.data ?? [];
               final classCount = classes.length;
@@ -264,9 +264,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         SizedBox(
           height: 40,
           child: StreamBuilder<List<ClassModel>>(
-            stream: _classController.streamMyClasses(),
+            stream: _classStream,
             builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
+              // Chỉ show spinner lần đầu chưa có data
+              if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
                 return const Center(
                   child: SizedBox(
                     width: 20,
@@ -275,7 +276,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 );
               }
-              final classes = (snapshot.data ?? []).take(5).toList();
+              final classes = (snapshot.data ?? []).take(4).toList();
               if (classes.isEmpty) {
                 return const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 24),
@@ -341,6 +342,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _activitiesSection() {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
@@ -358,9 +360,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ],
           ),
         ),
-        _RecentActivitiesWidget(
-          classController: _classController,
-          examController: _examController,
+        Expanded(
+          child: _RecentActivitiesWidget(
+            classStream: _classStream,
+            examStream:  _examStream,
+          ),
         ),
       ],
     );
@@ -368,12 +372,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
 }
 
 class _RecentActivitiesWidget extends StatelessWidget {
-  final ClassController classController;
-  final ExamController examController;
+  final Stream<List<ClassModel>> classStream;
+  final Stream<List<ExamModel>>  examStream;
 
   const _RecentActivitiesWidget({
-    required this.classController,
-    required this.examController,
+    required this.classStream,
+    required this.examStream,
   });
 
   String _timeAgo(String isoString) {
@@ -393,10 +397,10 @@ class _RecentActivitiesWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<ExamModel>>(
-      stream: examController.streamMyExams(),
+      stream: examStream,
       builder: (context, examSnap) {
         return StreamBuilder<List<ClassModel>>(
-          stream: classController.streamMyClasses(),
+          stream: classStream,
           builder: (context, classSnap) {
             final activities = <Map<String, dynamic>>[];
 
@@ -443,7 +447,7 @@ class _RecentActivitiesWidget extends StatelessWidget {
                   (b['sortKey'] as String).compareTo(a['sortKey'] as String),
             );
 
-            final display = activities.take(4).toList();
+            final display = activities.take(3).toList();
 
             if (display.isEmpty) {
               return Padding(
@@ -479,6 +483,7 @@ class _RecentActivitiesWidget extends StatelessWidget {
             return Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: display.map((a) => _activityCard(a)).toList(),
               ),
             );

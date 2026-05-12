@@ -3,6 +3,7 @@ import '../../core/app_colors.dart';
 import '../../data/models/exam_model.dart';
 import '../../data/models/question_model.dart';
 import '../../controllers/exam_controller.dart';
+import '../../data/services/class_cache_service.dart';
 import 'assign_exam_screen.dart';
 import 'exam_detail_screen.dart';
 
@@ -23,6 +24,9 @@ class _ExamPreviewScreenState extends State<ExamPreviewScreen> {
   void initState() {
     super.initState();
     _exam = widget.exam;
+    // Warm cache lớp học ngay khi user đang xem preview —
+    // đến lúc bấm "Lưu & Giao đề", AssignExamScreen sẽ hiển thị danh sách lớp tức thì
+    ClassCacheService.instance.warmUp();
   }
 
   //lưu đề

@@ -24,7 +24,7 @@ class StudentResultsController {
           if (snap.docs.isEmpty) return <Map<String, dynamic>>[];
 
           // Future.wait: fetch tất cả exam + class song song cùng lúc
-          
+
           final results = await Future.wait(
             snap.docs.map((doc) async {
               final sub = SubmissionModel.fromJson(doc.data(), id: doc.id);
@@ -33,19 +33,18 @@ class StudentResultsController {
               final fetched = await Future.wait([
                 sub.examId.isNotEmpty
                     ? _firestore
-                        .getDocument('exams', sub.examId)
-                        .catchError((_) => null)
+                          .getDocument('exams', sub.examId)
+                          .catchError((_) => null)
                     : Future.value(null),
                 sub.classId.isNotEmpty
                     ? _firestore
-                        .getDocument('classes', sub.classId)
-                        .catchError((_) => null)
+                          .getDocument('classes', sub.classId)
+                          .catchError((_) => null)
                     : Future.value(null),
               ]);
 
               final examDoc = fetched[0];
               final classDoc = fetched[1];
-
 
               String examName = 'Bài kiểm tra';
               if (examDoc != null && examDoc.exists && examDoc.data() != null) {
@@ -54,19 +53,13 @@ class StudentResultsController {
                 if (raw.isNotEmpty) examName = raw;
               }
 
-
               String className = 'Lớp học';
               if (classDoc != null &&
                   classDoc.exists &&
                   classDoc.data() != null) {
-                final raw =
-                    (classDoc.data()!['name'] ?? '') as String;
+                final raw = (classDoc.data()!['name'] ?? '') as String;
                 if (raw.isNotEmpty) className = raw;
               }
-
-
-
-
 
               DateTime submittedAt;
               try {
@@ -76,7 +69,6 @@ class StudentResultsController {
               } catch (_) {
                 submittedAt = DateTime.now();
               }
-
 
               return {
                 'examName': examName,
@@ -92,7 +84,5 @@ class StudentResultsController {
 
           return results;
         });
-
-
   }
 }

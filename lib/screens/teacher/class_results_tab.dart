@@ -236,7 +236,7 @@ class _ExamCard extends StatelessWidget {
   }
 }
 
-// ─── Badge trạng thái tính theo thời gian thật ───────────────────────────────
+
 class _StatusBadge extends StatelessWidget {
   final ExamAssignment assignment;
   final int submitted;

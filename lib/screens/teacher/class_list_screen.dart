@@ -18,6 +18,15 @@ class _ClassListScreenState extends State<ClassListScreen> {
   final _classController  = ClassController();
   String _searchText = '';
 
+  // Khởi tạo 1 lần duy nhất — tránh tạo stream mới mỗi lần rebuild
+  late final Stream<List<ClassModel>> _classStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _classStream = _classController.streamMyClasses();
+  }
+
   @override
   void dispose() {
     _searchController.dispose();
@@ -116,10 +125,10 @@ class _ClassListScreenState extends State<ClassListScreen> {
 
   Widget _buildClassList() {
     return StreamBuilder<List<ClassModel>>(
-      stream: _classController.streamMyClasses(),
+      stream: _classStream,
       builder: (context, snapshot) {
-        // Đang load lần đầu
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        // Đang load lần đầu — không show khi Firestore push update mới
+        if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
 
