@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart'; 
 import 'screens/auth/onboarding_screen.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart'; 
 import 'firebase_options.dart';  
 import 'package:firebase_app_check/firebase_app_check.dart';
@@ -11,7 +12,13 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-
+  
+  //Bật lưu trữ Cache Offline không giới hạn trên thiết bị người dùng
+  FirebaseFirestore.instance.settings = const Settings(
+    persistenceEnabled: true, 
+    cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED, 
+  );
+  
    await FirebaseAppCheck.instance.activate(
     androidProvider: kDebugMode ? AndroidProvider.debug : AndroidProvider.playIntegrity, 
     appleProvider: kDebugMode ? AppleProvider.debug : AppleProvider.deviceCheck,

@@ -118,12 +118,7 @@ class _ClassListScreenState extends State<ClassListScreen> {
     return StreamBuilder<List<ClassModel>>(
       stream: _classController.streamMyClasses(),
       builder: (context, snapshot) {
-        // Đang load lần đầu
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        // Lỗi
+        // bắt lỗi
         if (snapshot.hasError) {
           return Center(
             child: Column(
@@ -142,7 +137,14 @@ class _ClassListScreenState extends State<ClassListScreen> {
           );
         }
 
-        final list = _filter(snapshot.data ?? []);
+        // hiện load nếu chưa có data
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        // ép kiểu
+        final allData = snapshot.data!;
+        final list = _filter(allData);
 
         // Trống hoàn toàn (chưa có lớp nào)
         if ((snapshot.data ?? []).isEmpty) {

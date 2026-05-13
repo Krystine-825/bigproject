@@ -25,7 +25,7 @@ class ClassResultsTab extends StatelessWidget {
     return StreamBuilder<List<ExamModel>>(
       stream: examController.streamMyExams(),
       builder: (context, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
+        if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
         if (snap.hasError) {

@@ -266,7 +266,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: StreamBuilder<List<ClassModel>>(
             stream: _classController.streamMyClasses(),
             builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
+              if (snapshot.hasError) {
+                return const Center(
+                  child: Text('Đã xảy ra lỗi tải dữ liệu', style: TextStyle(color: Colors.red, fontSize: 12)),
+                );
+              }
+
+              // Nếu không có data (Cache trống và Server chưa phản hồi), hiện Loading của bạn
+              if (!snapshot.hasData) {
                 return const Center(
                   child: SizedBox(
                     width: 20,
@@ -275,6 +282,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 );
               }
+
+              
+              final yourDataList = snapshot.data!;
               final classes = (snapshot.data ?? []).take(5).toList();
               if (classes.isEmpty) {
                 return const Padding(

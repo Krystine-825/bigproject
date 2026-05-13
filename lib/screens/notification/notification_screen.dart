@@ -75,7 +75,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
       body: StreamBuilder<List<NotificationModel>>(
         stream: stream,
         builder: (context, snap) {
-          if (snap.connectionState == ConnectionState.waiting) {
+          if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
 

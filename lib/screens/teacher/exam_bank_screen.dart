@@ -124,10 +124,21 @@ class _ExamBankScreenState extends State<ExamBankScreen> {
             child: StreamBuilder<List<ExamModel>>(
               stream: _examStream, 
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
+                // Chặn lỗi 
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Text('Đã xảy ra lỗi: ${snapshot.error}', 
+                        style: const TextStyle(color: Colors.red)),
+                  );
+                }
+
+                // nếu chưa có data (Cache trống), hiện Loading
+                if (!snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator());
                 }
 
+                
+                final allExams = snapshot.data!;
                 final exams    = snapshot.data ?? [];
                 final filtered = _filterExams(exams);
 
