@@ -1,4 +1,3 @@
-
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../data/services/auth_service.dart';
@@ -9,16 +8,14 @@ import '../data/models/user_model.dart';
 import 'notification_controller.dart'; 
 
 class ClassController {
-  final authService     = AuthService();
+  final authService      = AuthService();
   final fireStoreService = FireStoreService();
-  final _notif          = NotificationController(); 
+  final _notif           = NotificationController(); 
 
-  final Map<String, UserModel> _userCache  = {};
+  final Map<String, UserModel> _userCache = {};
   final Map<String, Map<String, dynamic>> _classCache = {};
 
   String get _myUid => authService.currentUid ?? '';
-
-  
 
   Future<ClassModel> createClass({
     required String name,
@@ -48,7 +45,7 @@ class ClassController {
       passwordHash: newClass.passwordHash,
     );
 
-    //  Thông báo cho giáo viên: tạo lớp thành công
+    // Thông báo cho giáo viên: tạo lớp thành công
     await _notif.notifyClassCreated(
       teacherId: teacherId,
       className: created.name,
@@ -58,8 +55,6 @@ class ClassController {
 
     return created;
   }
-
-
 
   Future<List<ClassModel>> getMyClasses() async {
     final teacherId = authService.currentUid;
@@ -100,14 +95,6 @@ class ClassController {
         isEqualTo: _myUid,
       );
 
-
-
-
-
-
-
-
-
       int studentCount = classSnap.docs.fold<int>(0, (sum, d) {
         final raw = (d.data()['student_count'] as num?)?.toInt() ?? 0;
         return sum + (raw < 0 ? 0 : raw);
@@ -122,8 +109,6 @@ class ClassController {
       return {'classes': 0, 'students': 0, 'exams': 0};
     }
   }
-
- 
 
   Stream<List<ClassMemberModel>> streamMembers(String classId) {
     return fireStoreService
@@ -148,8 +133,6 @@ class ClassController {
             _userCache[m.studentId] = user;
             return m.copyWith(
                 studentName: user.name, studentEmail: user.email);
-
-
           }
         } catch (_) {}
         return m;
@@ -159,7 +142,6 @@ class ClassController {
     });
   }
 
-
   Future<void> kickMember(String memberId) async {
     final memberDoc =
         await fireStoreService.getDocument('class_members', memberId);
@@ -168,9 +150,6 @@ class ClassController {
 
     await fireStoreService
         .updateDocument('class_members', memberId, {'status': 'kicked'});
-
-
-
 
     if (classId != null) {
       final classDoc =
@@ -194,7 +173,6 @@ class ClassController {
       }
     }
   }
-
 
   Future<ClassModel> joinClass({
     required String code,
@@ -232,7 +210,6 @@ class ClassController {
         d.data()['student_id'] == studentId &&
         d.data()['status'] == 'active');
 
-
     if (existingMember) throw Exception('Bạn đã là thành viên của lớp này');
 
     final newMember = ClassMemberModel(
@@ -269,7 +246,6 @@ class ClassController {
 
     return classData;
   }
-
 
   Stream<List<Map<String, dynamic>>> streamStudentClasses() {
     final studentId = authService.currentUid ?? '';

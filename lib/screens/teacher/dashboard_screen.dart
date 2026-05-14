@@ -24,9 +24,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final _classController = ClassController();
   final _examController = ExamController();
 
+  // Khởi tạo 1 lần duy nhất — tránh tạo stream mới mỗi lần rebuild
+  late final Stream<List<ClassModel>> _classStream;
+  late final Stream<List<ExamModel>> _examStream;
+
   @override
   void initState() {
     super.initState();
+    _classStream = _classController.streamMyClasses();
+    _examStream  = _examController.streamMyExams();
     _loadName();
   }
 
@@ -141,18 +147,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
       child: StreamBuilder<List<ClassModel>>(
-        stream: _classController.streamMyClasses(),
+        stream: _classStream,
         builder: (context, classSnap) {
+          
+          if (classSnap.hasError) return const SizedBox.shrink();
+          // Chờ data để không bị chớp (giữ khung layout 100px để giao diện không bị giật)
+          if (!classSnap.hasData) return const SizedBox(height: 100, child: Center(child: CircularProgressIndicator()));
+
           return StreamBuilder<List<ExamModel>>(
-            stream: _examController.streamMyExams(),
+            stream: _examStream,
             builder: (context, examSnap) {
-              final classes = classSnap.data ?? [];
+              if (examSnap.hasError) return const SizedBox.shrink();
+              if (!examSnap.hasData) return const SizedBox(height: 100, child: Center(child: CircularProgressIndicator()));
+
+              // Đã có data chắc chắn 100%
+              final classes = classSnap.data!;
               final classCount = classes.length;
               final studentCount = classes.fold<int>(
                 0,
                 (s, c) => s + c.studentCount,
               );
-              final examCount = examSnap.data?.length ?? 0;
+              final examCount = examSnap.data!.length;
 
               final stats = [
                 {
@@ -264,7 +279,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         SizedBox(
           height: 40,
           child: StreamBuilder<List<ClassModel>>(
-            stream: _classController.streamMyClasses(),
+            stream: _classStream,
             builder: (context, snapshot) {
               if (snapshot.hasError) {
                 return const Center(
@@ -272,7 +287,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 );
               }
 
-              // Nếu không có data (Cache trống và Server chưa phản hồi), hiện Loading của bạn
+              // Chờ Data, loại bỏ hẳn ConnectionState
               if (!snapshot.hasData) {
                 return const Center(
                   child: SizedBox(
@@ -283,9 +298,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 );
               }
 
-              
-              final yourDataList = snapshot.data!;
-              final classes = (snapshot.data ?? []).take(5).toList();
+              final classes = snapshot.data!.take(4).toList();
               if (classes.isEmpty) {
                 return const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 24),
@@ -295,6 +308,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 );
               }
+              
               return ListView.builder(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -351,6 +365,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _activitiesSection() {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
@@ -369,8 +384,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
         _RecentActivitiesWidget(
-          classController: _classController,
-          examController: _examController,
+          classStream: _classStream,
+          examStream:  _examStream,
         ),
       ],
     );
@@ -378,12 +393,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
 }
 
 class _RecentActivitiesWidget extends StatelessWidget {
-  final ClassController classController;
-  final ExamController examController;
+  final Stream<List<ClassModel>> classStream;
+  final Stream<List<ExamModel>>  examStream;
 
   const _RecentActivitiesWidget({
-    required this.classController,
-    required this.examController,
+    required this.classStream,
+    required this.examStream,
   });
 
   String _timeAgo(String isoString) {
@@ -403,14 +418,22 @@ class _RecentActivitiesWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<ExamModel>>(
-      stream: examController.streamMyExams(),
+      stream: examStream,
       builder: (context, examSnap) {
-        return StreamBuilder<List<ClassModel>>(
-          stream: classController.streamMyClasses(),
-          builder: (context, classSnap) {
-            final activities = <Map<String, dynamic>>[];
+        if (examSnap.hasError) return const SizedBox.shrink();
+        if (!examSnap.hasData) return const Center(child: CircularProgressIndicator());
 
-            for (final exam in (examSnap.data ?? [])) {
+        return StreamBuilder<List<ClassModel>>(
+          stream: classStream,
+          builder: (context, classSnap) {
+            if (classSnap.hasError) return const SizedBox.shrink();
+            if (!classSnap.hasData) return const Center(child: CircularProgressIndicator());
+
+            final activities = <Map<String, dynamic>>[];
+            final exams = examSnap.data!;
+            final classes = classSnap.data!;
+
+            for (final exam in exams) {
               if (exam.isAssigned) {
                 final lastAssign = exam.assignments.isNotEmpty
                     ? exam.assignments.last
@@ -435,7 +458,7 @@ class _RecentActivitiesWidget extends StatelessWidget {
               }
             }
 
-            for (final cls in (classSnap.data ?? [])) {
+            for (final cls in classes) {
               if (cls.studentCount > 0) {
                 activities.add({
                   'icon': Icons.group_add_rounded,
@@ -453,7 +476,7 @@ class _RecentActivitiesWidget extends StatelessWidget {
                   (b['sortKey'] as String).compareTo(a['sortKey'] as String),
             );
 
-            final display = activities.take(4).toList();
+            final display = activities.take(3).toList();
 
             if (display.isEmpty) {
               return Padding(
@@ -489,6 +512,7 @@ class _RecentActivitiesWidget extends StatelessWidget {
             return Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: display.map((a) => _activityCard(a)).toList(),
               ),
             );

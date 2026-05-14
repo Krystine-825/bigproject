@@ -5,25 +5,24 @@ import '../data/models/exam_model.dart';
 import '../data/services/auth_service.dart';
 import '../data/services/firestore_service.dart';
 import '../data/services/storage_service.dart';
-import 'notification_controller.dart'; 
+import 'notification_controller.dart';
 import 'dart:convert';
 
 class ExamController {
   final functions = FirebaseFunctions.instance;
-  final firestore  = FireStoreService();
-  final auth       = AuthService();
-  final storage    = StorageService();
-  final _notif     = NotificationController(); 
+  final firestore = FireStoreService();
+  final auth = AuthService();
+  final storage = StorageService();
+  final _notif = NotificationController();
 
-  // tạo đề 
-
+  // tạo đề
   Future<ExamModel> generateExam({
     required String examName,
     required File pdfFile,
     required String extractedText,
     required String fileName,
     required int questionCount,
-    required String cefrLevel,
+    required String cefrLevel, 
   }) async {
     final teacherId = auth.currentUid;
     if (teacherId == null) throw Exception('Người dùng chưa đăng nhập');
@@ -44,7 +43,7 @@ class ExamController {
       'config': {
         'questionCount': questionCount,
         'questionTypes': ['multiple_choice', 'fill_in', 'true_false'],
-        'targetCEFR': cefrLevel,
+        'targetCEFR': cefrLevel, 
       },
     });
 
@@ -56,7 +55,7 @@ class ExamController {
     }
 
     final examJson = data['exam'] as Map<String, dynamic>;
-    final examId   = (examJson['exam_id'] ?? examJson['id'] ?? '') as String;
+    final examId = (examJson['exam_id'] ?? examJson['id'] ?? '') as String;
 
     if (examId.isEmpty) throw Exception('Không nhận được ID đề từ server');
 
@@ -73,13 +72,65 @@ class ExamController {
     return exam;
   }
 
-
   Future<void> saveExam(ExamModel exam) async {
     await firestore.setDocument('exams', exam.id, exam.toJson());
   }
 
-  //giao đề
+  // giao đề
+  /// Giao đề cho **nhiều lớp cùng lúc** — chỉ 1 lần write Firestore
+  Future<void> assignExamToClasses({
+    required String examId,
+    required List<Map<String, String>> classes, // [{'id': ..., 'name': ...}]
+    required int durationMinutes,
+    required DateTime openAt,
+    required DateTime closeAt,
+    required int maxAttempts,
+    required String examName,
+    bool showAnswerAfterSubmit = false,
+  }) async {
+    final teacherId = auth.currentUid ?? '';
+    final now = DateTime.now().toIso8601String();
 
+    final newAssignments = classes
+        .map(
+          (cls) => {
+            'classId': cls['id'],
+            'className': cls['name'],
+            'durationMinutes': durationMinutes,
+            'openAt': openAt.toIso8601String(),
+            'closeAt': closeAt.toIso8601String(),
+            'maxAttempts': maxAttempts,
+            'assignedAt': now,
+            'showAnswerAfterSubmit': showAnswerAfterSubmit,
+          },
+        )
+        .toList();
+
+    final newClassIds = classes.map((c) => c['id']!).toList();
+
+    // 1 lần write duy nhất cho tất cả lớp
+    await FirebaseFirestore.instance.collection('exams').doc(examId).update({
+      'status': 'assigned',
+      'class_id': newClassIds.first,
+      'assignments': FieldValue.arrayUnion(newAssignments),
+      'assigned_class_ids': FieldValue.arrayUnion(newClassIds),
+      'assigned_at': now,
+    });
+
+    // Gửi thông báo cho tất cả lớp — chạy nền, không block UI
+    for (final cls in classes) {
+      _sendAssignNotifications(
+        examId: examId,
+        examName: examName,
+        classId: cls['id']!,
+        className: cls['name']!,
+        teacherId: teacherId,
+        closeAt: closeAt,
+      );
+    }
+  }
+
+  /// Giao đề cho **1 lớp** (giữ lại để tương thích nếu cần)
   Future<void> assignExam({
     required String examId,
     required String classId,
@@ -88,10 +139,10 @@ class ExamController {
     required DateTime openAt,
     required DateTime closeAt,
     required int maxAttempts,
-    required String examName, // thêm vào để gửi thông báo 
+    required String examName,
     bool showAnswerAfterSubmit = false,
   }) async {
-    final teacherId = auth.currentUid ?? ''; 
+    final teacherId = auth.currentUid ?? '';
 
     final newAssignment = {
       'classId': classId,
@@ -104,7 +155,6 @@ class ExamController {
       'showAnswerAfterSubmit': showAnswerAfterSubmit,
     };
 
-
     await FirebaseFirestore.instance.collection('exams').doc(examId).update({
       'status': 'assigned',
       'class_id': classId,
@@ -113,16 +163,17 @@ class ExamController {
       'assigned_at': DateTime.now().toIso8601String(),
     });
 
-    // Gửi thông báo KHÔNG await — chạy nền, không block UI
     _sendAssignNotifications(
-      examId: examId, examName: examName,
-      classId: classId, className: className,
-      teacherId: teacherId, closeAt: closeAt,
+      examId: examId,
+      examName: examName,
+      classId: classId,
+      className: className,
+      teacherId: teacherId,
+      closeAt: closeAt,
     );
-    // Hàm kết thúc ngay, không chờ notification
   }
 
-  // Hàm riêng chạy nền
+  // Hàm riêng chạy nền xử lý Notifications
   Future<void> _sendAssignNotifications({
     required String examId,
     required String examName,
@@ -144,7 +195,6 @@ class ExamController {
           .toList();
 
       await Future.wait([
-
         _notif.notifyExamAssignedToStudents(
           studentIds: studentIds,
           examName: examName,
@@ -153,7 +203,6 @@ class ExamController {
           className: className,
           closeAt: closeAt,
         ),
-
         _notif.notifyExamAssignedConfirm(
           teacherId: teacherId,
           examName: examName,
@@ -165,7 +214,7 @@ class ExamController {
     } catch (_) {}
   }
 
-  //  thu hồi đề (rút lại đề từ một lớp, và tự động chuyển trạng thái về draft nếu không còn lớp nào được giao)
+  // thu hồi đề
   Future<void> unassignExam({
     required String examId,
     required String classId,
@@ -175,9 +224,9 @@ class ExamController {
 
     final data = examDoc.data()!;
     final List<dynamic> currentAssignments = data['assignments'] ?? [];
-    final List<dynamic> currentAssignedClassIds = data['assigned_class_ids'] ?? [];
+    final List<dynamic> currentAssignedClassIds =
+        data['assigned_class_ids'] ?? [];
 
-    // Lọc bỏ classId cần thu hồi ra khỏi danh sách
     final updatedAssignments = currentAssignments
         .where((a) => a['classId'] != classId)
         .toList();
@@ -185,7 +234,7 @@ class ExamController {
         .where((id) => id != classId)
         .toList();
 
-    // 💡 Điểm mấu chốt: Nếu danh sách rỗng, đưa status về lại draft
+    // Trở về draft nếu thu hồi toàn bộ lớp
     final newStatus = updatedAssignments.isEmpty ? 'draft' : 'assigned';
 
     await FirebaseFirestore.instance.collection('exams').doc(examId).update({
@@ -195,28 +244,64 @@ class ExamController {
     });
   }
 
-  //xóa dề
-
-  // xóa đề thi (Chỉ áp dụng cho đề chưa giao)
+  // xóa đề thi và toàn bộ bài nộp
   Future<void> deleteExam(String examId) async {
-    final examDoc = await firestore.getDocument('exams', examId);
-    if (examDoc.exists && examDoc.data() != null) {
-      final d = examDoc.data()!;
-      final assignedIds = List<String>.from(d['assigned_class_ids'] ?? []);
+    // gửi thông báo cho học sinh trước khi xóa
+    try {
+      final examDoc = await firestore.getDocument('exams', examId);
+      if (examDoc.exists && examDoc.data() != null) {
+        final d = examDoc.data()!;
+        final examName = (d['name'] ?? d['title'] ?? 'Đề thi') as String;
+        final assignedIds = List<String>.from(d['assigned_class_ids'] ?? []);
 
-      // Nếu danh sách lớp đã giao không rỗng, báo lỗi ngay!
-      if (assignedIds.isNotEmpty) {
-        throw Exception('Không thể xóa đề thi đang được giao. Vui lòng thu hồi đề khỏi các lớp trước khi xóa.');
+        for (final classId in assignedIds) {
+          final memberSnap = await firestore.queryWhere(
+            'class_members',
+            field: 'class_id',
+            isEqualTo: classId,
+          );
+          final studentIds = memberSnap.docs
+              .where((doc) => doc.data()['status'] == 'active')
+              .map((doc) => (doc.data()['student_id'] as String?) ?? '')
+              .where((id) => id.isNotEmpty)
+              .toList();
+
+          if (studentIds.isNotEmpty) {
+            final classDoc = await firestore.getDocument('classes', classId);
+            final className =
+                (classDoc.data()?['name'] as String?) ?? 'Lớp học';
+
+            await _notif.notifyExamDeletedToStudents(
+              studentIds: studentIds,
+              examName: examName,
+              classId: classId,
+              className: className,
+            );
+          }
+        }
       }
+    } catch (_) {} // lỗi thông báo thì vẫn tiếp tục xóa
+
+    // gom tất cả lệnh xóa vào một Batch để đảm bảo an toàn
+    final batch = FirebaseFirestore.instance.batch();
+
+    // tìm và đưa toàn bộ bài nộp (submissions) của đề này vào danh sách xóa
+    final subSnap = await firestore.queryWhere(
+      'submissions',
+      field: 'exam_id',
+      isEqualTo: examId,
+    );
+    for (final doc in subSnap.docs) {
+      batch.delete(doc.reference);
     }
 
-    // Nếu đề chưa giao, tiến hành xóa đề thi gốc
+    // đưa đề thi gốc vào danh sách xóa
     final examRef = FirebaseFirestore.instance.collection('exams').doc(examId);
-    await examRef.delete();
+    batch.delete(examRef);
+
+    // thực thi xóa hàng loạt
+    await batch.commit();
   }
-
-
-
 
   Future<List<Map<String, String>>> getMyClasses() async {
     final teacherId = auth.currentUid ?? '';
@@ -227,13 +312,9 @@ class ExamController {
     );
 
     return snap.docs
-        .map((d) => {
-              'id': d.id,
-              'name': (d.data()['name'] ?? '') as String,
-            })
+        .map((d) => {'id': d.id, 'name': (d.data()['name'] ?? '') as String})
         .toList();
   }
-
 
   Stream<List<ExamModel>> streamMyExams() {
     final teacherId = auth.currentUid ?? '';
@@ -241,11 +322,12 @@ class ExamController {
 
     return firestore
         .streamWhere('exams', field: 'teacher_id', isEqualTo: teacherId)
-        .map((snap) => snap.docs
-            .map((doc) => ExamModel.fromJson(doc.data(), id: doc.id))
-            .toList());
+        .map(
+          (snap) => snap.docs
+              .map((doc) => ExamModel.fromJson(doc.data(), id: doc.id))
+              .toList(),
+        );
   }
-
 
   Stream<List<ExamModel>> streamAssignedExamsForStudent(String classId) {
     final studentId = auth.currentUid ?? '';
@@ -260,7 +342,9 @@ class ExamController {
         .map((snap) {
           return snap.docs
               .map((doc) => ExamModel.fromJson(doc.data(), id: doc.id))
-              .where((exam) => exam.assignments.any((a) => a.classId == classId))
+              .where(
+                (exam) => exam.assignments.any((a) => a.classId == classId),
+              )
               .toList()
             ..sort((a, b) {
               final closeA = a.assignments

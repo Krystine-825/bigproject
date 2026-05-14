@@ -152,7 +152,7 @@ function _validateContent(text) {
   const cleanText = normalizedText.replace(/\s+/g, '');
   const totalChars = cleanText.length;
 
-  // 1. Kiểm tra độ dài tối thiểu
+  // Kiểm tra độ dài tối thiểu
   if (totalChars < 50) { 
     return { valid: false, reason: 'Nội dung PDF quá ngắn sau khi xử lý (dưới 50 ký tự).' };
   }

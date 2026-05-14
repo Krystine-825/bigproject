@@ -6,9 +6,12 @@ class StudentResultsController {
   final _auth = AuthService();
   final _firestore = FireStoreService();
 
+  
+  final Map<String, String> _examNameCache = {};
+  final Map<String, String> _classNameCache = {};
+
   String get _uid => _auth.currentUid ?? '';
 
-  // Chuyển sang Stream + fix N+1: fetch exam & class song song thay vì tuần tự
   Stream<List<Map<String, dynamic>>> streamResults() {
     if (_uid.isEmpty) return Stream.value([]);
 
@@ -23,50 +26,47 @@ class StudentResultsController {
         .asyncMap((snap) async {
           if (snap.docs.isEmpty) return <Map<String, dynamic>>[];
 
-          // Future.wait: fetch tất cả exam + class song song cùng lúc
-          
           final results = await Future.wait(
             snap.docs.map((doc) async {
               final sub = SubmissionModel.fromJson(doc.data(), id: doc.id);
 
-              // Fetch exam và class song song
-              final fetched = await Future.wait([
-                sub.examId.isNotEmpty
-                    ? _firestore
-                        .getDocument('exams', sub.examId)
-                        .catchError((_) => null)
-                    : Future.value(null),
-                sub.classId.isNotEmpty
-                    ? _firestore
-                        .getDocument('classes', sub.classId)
-                        .catchError((_) => null)
-                    : Future.value(null),
-              ]);
-
-              final examDoc = fetched[0];
-              final classDoc = fetched[1];
-
-
+              // Lấy tên Đề thi (Ưu tiên RAM Cache)
               String examName = 'Bài kiểm tra';
-              if (examDoc != null && examDoc.exists && examDoc.data() != null) {
-                final d = examDoc.data()!;
-                final raw = (d['title'] ?? d['name'] ?? '') as String;
-                if (raw.isNotEmpty) examName = raw;
+              if (sub.examId.isNotEmpty) {
+                if (_examNameCache.containsKey(sub.examId)) {
+                  examName = _examNameCache[sub.examId]!;
+                } else {
+                  try {
+                    final examDoc = await _firestore.getDocument('exams', sub.examId);
+                    if (examDoc.exists && examDoc.data() != null) {
+                      final raw = (examDoc.data()!['title'] ?? examDoc.data()!['name'] ?? '') as String;
+                      if (raw.isNotEmpty) {
+                        examName = raw;
+                        _examNameCache[sub.examId] = raw; // Lưu vào Cache
+                      }
+                    }
+                  } catch (_) {}
+                }
               }
 
-
+              // Lấy tên Lớp học (Ưu tiên RAM Cache)
               String className = 'Lớp học';
-              if (classDoc != null &&
-                  classDoc.exists &&
-                  classDoc.data() != null) {
-                final raw =
-                    (classDoc.data()!['name'] ?? '') as String;
-                if (raw.isNotEmpty) className = raw;
+              if (sub.classId.isNotEmpty) {
+                if (_classNameCache.containsKey(sub.classId)) {
+                  className = _classNameCache[sub.classId]!;
+                } else {
+                  try {
+                    final classDoc = await _firestore.getDocument('classes', sub.classId);
+                    if (classDoc.exists && classDoc.data() != null) {
+                      final raw = (classDoc.data()!['name'] ?? '') as String;
+                      if (raw.isNotEmpty) {
+                        className = raw;
+                        _classNameCache[sub.classId] = raw; // Lưu vào Cache
+                      }
+                    }
+                  } catch (_) {}
+                }
               }
-
-
-
-
 
               DateTime submittedAt;
               try {
@@ -76,7 +76,6 @@ class StudentResultsController {
               } catch (_) {
                 submittedAt = DateTime.now();
               }
-
 
               return {
                 'examName': examName,
@@ -92,7 +91,5 @@ class StudentResultsController {
 
           return results;
         });
-
-
   }
 }

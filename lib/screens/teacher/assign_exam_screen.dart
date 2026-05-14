@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../data/models/exam_model.dart';
 import '../../controllers/exam_controller.dart';
+import '../../data/services/class_cache_service.dart';
 import 'exam_bank_screen.dart';
-import '../../controllers/class_controller.dart'; 
+
 class AssignExamScreen extends StatefulWidget {
   final ExamModel exam;
   const AssignExamScreen({super.key, required this.exam});
@@ -13,45 +14,50 @@ class AssignExamScreen extends StatefulWidget {
 }
 
 class _AssignExamScreenState extends State<AssignExamScreen> {
-  final _controller      = ExamController();
-  final _classController = ClassController(); 
+  final _controller = ExamController();
+  List<Map<String, String>> _classes = [];
+  Set<String> _selectedIds = {};
+  
+  int _durationMinutes = 45;
+  DateTime _openAt = DateTime.now().add(const Duration(hours: 1));
+  DateTime _closeAt = DateTime.now().add(const Duration(days: 7));
+  int _maxAttempts = 1;
+  bool _showAnswerAfterSubmit = false; 
+  bool _isAssigning = false;
 
-  List<Map<String, String>> _classes         = [];
-  Set<String>               _selectedIds     = {};
-
-
-  int      _durationMinutes       = 45;
-  DateTime _openAt                = DateTime.now().add(const Duration(hours: 1));
-  DateTime _closeAt               = DateTime.now().add(const Duration(days: 7));
-  int      _maxAttempts           = 1;
-  bool     _showAnswerAfterSubmit = false; // ← MỚI
-  bool     _isAssigning           = false;
-
-  late Stream<List<Map<String, String>>> _classStream;
+  List<Map<String, String>>? _classList;
+  // Cache được quản lý bởi ClassCacheService singleton (toàn app)
 
   @override
   void initState() {
     super.initState();
     final assignedIds = widget.exam.assignments.map((a) => a.classId).toSet();
-    
-    
-    _classStream = _classController.streamMyClasses().map((classes) => classes
-        .where((c) => !assignedIds.contains(c.id))
-        .map((c) => {'id': c.id, 'name': c.name})
-        .toList());
-
-
-
-
-
-
-
-
+    _loadClasses(assignedIds);
   }
 
   bool get _allSelected =>
       _classes.isNotEmpty &&
       _classes.every((c) => _selectedIds.contains(c['id']));
+
+  Future<void> _loadClasses(Set<String> assignedIds) async {
+    final svc = ClassCacheService.instance;
+
+    // Nếu cache đã có (warm từ ExamBankScreen) → hiển thị ngay lập tức
+    if (svc.hasCache) {
+      final list = svc.cache!
+          .where((c) => !assignedIds.contains(c['id']))
+          .toList();
+      if (mounted) setState(() { _classList = list; _classes = list; });
+      return;
+    }
+
+    // Chưa có cache → hiển thị loading và fetch
+    if (mounted) setState(() { _classList = null; _classes = []; });
+
+    final all = await svc.fetchAndCache();
+    final list = all.where((c) => !assignedIds.contains(c['id'])).toList();
+    if (mounted) setState(() { _classList = list; _classes = list; });
+  }
 
   void _showClassSelectionDialog(List<Map<String, String>> classes) {
     showDialog(
@@ -80,7 +86,7 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
                           _selectedIds = classes.map((c) => c['id']!).toSet();
                         }
                       });
-                      setState(() {}); // Update parent state
+                      setState(() {}); 
                     },
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -124,7 +130,7 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
                             _selectedIds.add(id);
                           }
                         });
-                        setState(() {}); // Update parent state
+                        setState(() {}); 
                       },
                       child: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 12),
@@ -207,38 +213,29 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
 
     setState(() => _isAssigning = true);
 
-
     try {
-      // Gọi TẤT CẢ các lớp CÙNG LÚC thay vì tuần tự
-      final results = await Future.wait(
-        _selectedIds.map((id) async {
-          final cls = _classes.firstWhere((c) => c['id'] == id);
-          try {
-            await _controller.assignExam(
-              examId:                widget.exam.id,
-              classId:               id,
-              className:             cls['name']!,
-              durationMinutes:       _durationMinutes,
-              openAt:                _openAt,
-              closeAt:               _closeAt,
-              maxAttempts:           _maxAttempts,
-              examName:              widget.exam.name,
-              showAnswerAfterSubmit: _showAnswerAfterSubmit,
-            );
-            return null; // thành công
-          } catch (e) {
-            return cls['name']!; // trả về tên lớp bị lỗi
-          }
-        }),
+      // Gom tất cả lớp → 1 lần write Firestore duy nhất
+      final selectedClasses = _selectedIds
+          .map((id) => _classes.firstWhere((c) => c['id'] == id))
+          .toList();
+
+      await _controller.assignExamToClasses(
+        examId:                widget.exam.id,
+        classes:               selectedClasses,
+        durationMinutes:       _durationMinutes,
+        openAt:                _openAt,
+        closeAt:               _closeAt,
+        maxAttempts:           _maxAttempts,
+        examName:              widget.exam.name,
+        showAnswerAfterSubmit: _showAnswerAfterSubmit,
       );
 
       if (!mounted) return;
-      final errors = results.whereType<String>().toList();
-      if (errors.isEmpty) {
-        _showSuccessDialog(_selectedIds.length);
-      } else {
-        _snack('Lỗi khi giao cho: ${errors.join(', ')}', isError: true);
-      }
+      // Xoá cache singleton vì danh sách lớp đã thay đổi
+      ClassCacheService.instance.invalidate();
+      _showSuccessDialog(_selectedIds.length);
+    } catch (e) {
+      if (mounted) _snack('Lỗi khi giao đề: $e', isError: true);
     } finally {
       if (mounted) setState(() => _isAssigning = false);
     }
@@ -278,7 +275,6 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 13, color: AppColors.textMedium),
             ),
-            // ── Hiển thị cài đặt đáp án trong dialog ───────────────
             const SizedBox(height: 10),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -323,10 +319,9 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
             width: double.infinity,
             child: ElevatedButton(
               onPressed: () {
-                Navigator.of(context).pop(); // đóng Dialog thành công
-                Navigator.of(context).pop(true); // đóng màn hình Giao đề, truyền 'true' về màn hình trước để nó tự refresh dữ liệu
-                //Lệnh pushAndRemoveUntil sẽ xóa sạch lịch sử màn hình và "đè" một màn hình ExamBankScreen hoàn toàn mới lên trên cùng
-                //push trực tiếp một màn hình tab (như Kho đề) bằng MaterialPageRoute sẽ làm mất hoàn toàn thanh Bottom Navigation Bar ở dưới đáy
+                Navigator.of(context).pop(); // đóng Dialog
+                Navigator.of(context).pop(true); // đóng AssignExamScreen
+                Navigator.of(context).pop(); // đóng ExamDetailScreen → về ExamBankScreen
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
@@ -388,7 +383,6 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
                   _buildAttemptsCard(),
                   const SizedBox(height: 20),
 
-                  // ── MỚI: Cài đặt đáp án ──────────────────────────
                   _buildSectionTitle('Cài đặt đáp án'),
                   const SizedBox(height: 10),
                   _buildShowAnswerCard(),
@@ -487,170 +481,97 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
   }
 
   Widget _buildClassMultiSelect() {
-    return StreamBuilder<List<Map<String, String>>>(
-      stream: _classStream,
-      builder: (context, snap) {
-        if (!snap.hasData) {
-          return Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04),
-                  blurRadius: 8, offset: const Offset(0, 2))],
-            ),
-            child: const Center(child: CircularProgressIndicator()),
-          );
-        }
+    // Đang fetch lần đầu → hiện spinner thay vì danh sách trống
+    if (_classList == null) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04),
+              blurRadius: 8, offset: const Offset(0, 2))],
+        ),
+        child: const Center(child: CircularProgressIndicator()),
+      );
+    }
 
-        final classes = snap.data!;
-        // Sync _classes để _handleAssign dùng được
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && _classes != classes) {
-            setState(() => _classes = classes);
-          }
-        });
+    final classes = _classList!;
+    final selectedClasses = classes.where((c) => _selectedIds.contains(c['id'])).toList();
+    final displayText = selectedClasses.isEmpty
+        ? 'Chọn lớp để giao đề'
+        : selectedClasses.length == 1
+            ? selectedClasses.first['name']!
+            : '${selectedClasses.length} lớp đã chọn';
 
-        if (classes.isEmpty) {
-          return Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: AppColors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04),
-                  blurRadius: 8, offset: const Offset(0, 2))],
-            ),
-            child: const Center(
-              child: Text('Tất cả lớp đã được giao đề này',
-                  style: TextStyle(color: AppColors.textMedium)),
-            ),
-          );
-        }
+    if (classes.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04),
+              blurRadius: 8, offset: const Offset(0, 2))],
+        ),
+        child: const Center(
+          child: Text('Tất cả lớp đã được giao đề này',
+              style: TextStyle(color: AppColors.textMedium)),
+        ),
+      );
+    }
 
-        final selectedClasses = classes.where((c) => _selectedIds.contains(c['id'])).toList();
-        final displayText = selectedClasses.isEmpty
-            ? 'Chọn lớp để giao đề'
-            : selectedClasses.length == 1
-                ? selectedClasses.first['name']!
-                : '${selectedClasses.length} lớp đã chọn';
-
-        return Container(
-          decoration: BoxDecoration(
-            color: AppColors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04),
-                blurRadius: 8, offset: const Offset(0, 2))],
-          ),
-          child: InkWell(
-            onTap: () => _showClassSelectionDialog(classes),
-            borderRadius: BorderRadius.circular(16),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-              child: Row(
-                children: [
-                  Container(
-                    width: 40, height: 40,
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryLight,
-                      borderRadius: BorderRadius.circular(10),
-
-
-
-                    ),
-                    child: const Icon(Icons.school_rounded,
-                        color: AppColors.primary, size: 22),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          displayText,
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: selectedClasses.isEmpty
-                                ? FontWeight.w500 : FontWeight.w700,
-                            color: selectedClasses.isEmpty
-                                ? AppColors.textHint : AppColors.textDark,
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                          ),
-                        ),
-                        if (selectedClasses.isNotEmpty)
-                          Text(
-                            selectedClasses.map((c) => c['name']!).join(', '),
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textMedium,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                      ],
-                    ),
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                  ),
-                  const Icon(Icons.arrow_drop_down_rounded,
-                      color: AppColors.textHint, size: 24),
-                ],
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04),
+            blurRadius: 8, offset: const Offset(0, 2))],
+      ),
+      child: InkWell(
+        onTap: () => _showClassSelectionDialog(classes),
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          child: Row(
+            children: [
+              Container(
+                width: 40, height: 40,
+                decoration: BoxDecoration(
+                  color: AppColors.primaryLight,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.school_rounded,
+                    color: AppColors.primary, size: 22),
               ),
-            ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      displayText,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: selectedClasses.isEmpty
+                            ? FontWeight.w500 : FontWeight.w700,
+                        color: selectedClasses.isEmpty
+                            ? AppColors.textHint : AppColors.textDark,
+                      ),
+                    ),
+                    if (selectedClasses.isNotEmpty)
+                      Text(
+                        selectedClasses.map((c) => c['name']!).join(', '),
+                        style: const TextStyle(fontSize: 12, color: AppColors.textMedium),
+                        maxLines: 2, overflow: TextOverflow.ellipsis,
+                      ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.arrow_drop_down_rounded,
+                  color: AppColors.textHint, size: 24),
+            ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
@@ -837,7 +758,6 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
     );
   }
 
-  // ── MỚI: Card cài đặt đáp án ────────────────────────────────────────────
   Widget _buildShowAnswerCard() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -905,7 +825,6 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
             ],
           ),
 
-          // Hint box khi bật
           if (_showAnswerAfterSubmit) ...[
             const SizedBox(height: 12),
             Container(
@@ -941,7 +860,6 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
 
   Widget _buildBottomButtons() {
     final canAssign = !_isAssigning &&
-
         _selectedIds.isNotEmpty;
 
     return Container(

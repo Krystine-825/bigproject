@@ -18,12 +18,20 @@ class _ClassListScreenState extends State<ClassListScreen> {
   final _classController  = ClassController();
   String _searchText = '';
 
+  // Khởi tạo 1 lần duy nhất — tránh tạo stream mới mỗi lần rebuild khi search
+  late final Stream<List<ClassModel>> _classStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _classStream = _classController.streamMyClasses();
+  }
+
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
   }
-
 
   List<ClassModel> _filter(List<ClassModel> all) {
     if (_searchText.isEmpty) return all;
@@ -32,14 +40,12 @@ class _ClassListScreenState extends State<ClassListScreen> {
         .toList();
   }
 
-  
   Future<void> _goCreate() async {
     // StreamBuilder tự refresh — push và chờ kết quả (ClassModel hoặc null)
     await Navigator.push<ClassModel>(
       context,
       MaterialPageRoute(builder: (_) => const CreateClassScreen()),
     );
-    // Stream Firestore tự cập nhật, không cần setState thủ công
   }
 
   @override
@@ -99,8 +105,8 @@ class _ClassListScreenState extends State<ClassListScreen> {
         onChanged: (v) => setState(() => _searchText = v.toLowerCase()),
         decoration: InputDecoration(
           hintText: 'Tìm kiếm lớp học...',
-          hintStyle: TextStyle(color: AppColors.textHint),
-          prefixIcon: Icon(Icons.search_rounded, color: AppColors.textHint),
+          hintStyle: const TextStyle(color: AppColors.textHint),
+          prefixIcon: const Icon(Icons.search_rounded, color: AppColors.textHint),
           filled: true,
           fillColor: AppColors.white,
           border: OutlineInputBorder(
@@ -113,12 +119,11 @@ class _ClassListScreenState extends State<ClassListScreen> {
     );
   }
 
-
   Widget _buildClassList() {
     return StreamBuilder<List<ClassModel>>(
-      stream: _classController.streamMyClasses(),
+      stream: _classStream,
       builder: (context, snapshot) {
-        // bắt lỗi
+        
         if (snapshot.hasError) {
           return Center(
             child: Column(
@@ -137,17 +142,15 @@ class _ClassListScreenState extends State<ClassListScreen> {
           );
         }
 
-        // hiện load nếu chưa có data
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        // ép kiểu
         final allData = snapshot.data!;
         final list = _filter(allData);
 
-        // Trống hoàn toàn (chưa có lớp nào)
-        if ((snapshot.data ?? []).isEmpty) {
+        // Trống hoàn toàn (chưa có lớp nào trên database/cache)
+        if (allData.isEmpty) {
           return Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,

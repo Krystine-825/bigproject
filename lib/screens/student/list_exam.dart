@@ -17,8 +17,8 @@ class ListExamsScreen extends StatefulWidget {
 
 class _ListExamsScreenState extends State<ListExamsScreen>
     with SingleTickerProviderStateMixin {
-  final classController = ClassController();
-  final examController = ExamController();
+  final classController      = ClassController();
+  final examController       = ExamController();
   final submissionController = SubmissionController();
 
   late TabController _tabController;
@@ -32,9 +32,9 @@ class _ListExamsScreenState extends State<ListExamsScreen>
       if (!_tabController.indexIsChanging) return;
       setState(() {
         switch (_tabController.index) {
-          case 0: _filter = 'all'; break;
+          case 0: _filter = 'all';     break;
           case 1: _filter = 'pending'; break;
-          case 2: _filter = 'done'; break;
+          case 2: _filter = 'done';    break;
           case 3: _filter = 'overdue'; break;
         }
       });
@@ -62,7 +62,9 @@ class _ListExamsScreenState extends State<ListExamsScreen>
         title: const Text(
           'Đề thi của bạn',
           style: TextStyle(
-              fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textDark),
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textDark),
         ),
         centerTitle: true,
         bottom: TabBar(
@@ -85,12 +87,18 @@ class _ListExamsScreenState extends State<ListExamsScreen>
       body: StreamBuilder<List<Map<String, dynamic>>>(
         stream: classController.streamStudentClasses(),
         builder: (context, classSnap) {
+          // Chặn lỗi
           if (classSnap.hasError) {
             return _buildEmpty('Lỗi tải dữ liệu.');
           }
 
-          // Firestore tự cache → dùng data trực tiếp
-          final classes = classSnap.data ?? [];
+          // Chặn Null để tận dụng Cache, tránh chớp màn hình
+          if (!classSnap.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          // Ép kiểu an toàn bằng dấu 
+          final classes = classSnap.data!;
 
           if (classes.isEmpty) {
             return _buildEmpty('Bạn chưa tham gia lớp học nào.');
@@ -119,14 +127,19 @@ class _ListExamsScreenState extends State<ListExamsScreen>
     return StreamBuilder<List<ExamModel>>(
       stream: examController.streamAssignedExamsForStudent(classId),
       builder: (context, examSnap) {
-        // Firestore tự cache → dùng data trực tiếp
-        final allExams = examSnap.data ?? [];
+        if (examSnap.hasError) return const SizedBox.shrink();
+        if (!examSnap.hasData) return const SizedBox.shrink(); // Đợi Cache load
+
+        final allExams = examSnap.data!;
         if (allExams.isEmpty) return const SizedBox.shrink();
 
         return StreamBuilder<Map<String, SubmissionModel>>(
           stream: submissionController.streamMySubmissionsForClass(classId),
           builder: (context, subSnap) {
-            final submissions = subSnap.data ?? {};
+            if (subSnap.hasError) return const SizedBox.shrink();
+            if (!subSnap.hasData) return const SizedBox.shrink(); // Đợi Cache load
+
+            final submissions = subSnap.data!;
             final now = DateTime.now();
 
             final exams = allExams.where((exam) {
@@ -134,14 +147,19 @@ class _ListExamsScreenState extends State<ListExamsScreen>
                 (a) => a.classId == classId,
                 orElse: () => exam.assignments.first,
               );
-              final isDone = submissions.containsKey(exam.id);
-              final isOverdue = assignment.closeAt.isBefore(now);
-
+              final hasBestSubmission = submissions.containsKey(exam.id);
+              final isOverdue        = assignment.closeAt.isBefore(now);
+              
+              // Lọc theo tab:
               switch (_filter) {
-                case 'pending':  return !isDone && !isOverdue;
-                case 'done':     return isDone;
-                case 'overdue':  return !isDone && isOverdue;
-                default:         return true;
+                case 'pending':
+                  return !hasBestSubmission && !isOverdue;
+                case 'done':
+                  return hasBestSubmission;
+                case 'overdue':
+                  return !hasBestSubmission && isOverdue;
+                default:
+                  return true;
               }
             }).toList();
 
@@ -192,18 +210,21 @@ class _ListExamsScreenState extends State<ListExamsScreen>
                     (a) => a.classId == classId,
                     orElse: () => exam.assignments.first,
                   );
-                  final isOverdue = assignment.closeAt.isBefore(now);
+                  final isOverdue   = assignment.closeAt.isBefore(now);
                   final isCompleted = sub != null;
 
-                  return _buildExamCard(
+                  return _ExamCard(
+                    key: ValueKey('${exam.id}_$classId'),
                     exam: exam,
                     classId: classId,
                     className: className,
-                    submission: sub,
+                    bestSubmission: sub,
                     assignment: assignment,
                     isOverdue: isOverdue,
                     isCompleted: isCompleted,
-                    closeAt: assignment.closeAt,
+                    submissionController: submissionController,
+                    onStartExam: () => _goToExam(exam, classId),
+                    onReview: () => _openReview(exam, classId, sub!),
                   );
                 }),
                 const SizedBox(height: 8),
@@ -215,117 +236,326 @@ class _ListExamsScreenState extends State<ListExamsScreen>
     );
   }
 
-  Widget _buildExamCard({
-    required ExamModel exam,
-    required String classId,
-    required String className,
-    required SubmissionModel? submission,
-    required ExamAssignment assignment,
-    required bool isOverdue,
-    required bool isCompleted,
-    required DateTime closeAt,
-  }) {
-    if (isCompleted && submission != null) {
-      final canReview = assignment.showAnswerAfterSubmit;
+  /// Vào màn hình làm bài — KHÔNG cần kiểm tra lượt ở đây vì _ExamCard
+  /// đã kiểm tra async trước khi gọi callback này.
+  void _goToExam(ExamModel exam, String classId) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+          builder: (_) => ExamTakeScreen(exam: exam, classId: classId)),
+    );
+  }
 
-      Widget card = Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: const Color(0xFFECFDF5),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFFD1FAE5)),
+  void _openReview(
+      ExamModel exam, String classId, SubmissionModel submission) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ExamReviewScreen(
+            exam: exam, classId: classId, submission: submission),
+      ),
+    );
+  }
+
+  Widget _buildEmpty(String message) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.inbox_rounded, size: 72, color: Colors.grey.shade300),
+          const SizedBox(height: 16),
+          Text(message,
+              style: TextStyle(fontSize: 15, color: Colors.grey.shade500)),
+        ],
+      ),
+    );
+  }
+}
+
+class _ExamCard extends StatefulWidget {
+  final ExamModel exam;
+  final String classId;
+  final String className;
+  final SubmissionModel? bestSubmission;
+  final ExamAssignment assignment;
+  final bool isOverdue;
+  final bool isCompleted;
+  final SubmissionController submissionController;
+  final VoidCallback onStartExam;
+  final VoidCallback onReview;
+
+  const _ExamCard({
+    super.key,
+    required this.exam,
+    required this.classId,
+    required this.className,
+    required this.bestSubmission,
+    required this.assignment,
+    required this.isOverdue,
+    required this.isCompleted,
+    required this.submissionController,
+    required this.onStartExam,
+    required this.onReview,
+  });
+
+  @override
+  State<_ExamCard> createState() => _ExamCardState();
+}
+
+class _ExamCardState extends State<_ExamCard> {
+  // Cache attemptCount để tránh gọi lại mỗi lần rebuild
+  int? _attemptCount;
+  bool _loadingAttempt = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAttemptCount();
+  }
+
+  Future<void> _loadAttemptCount() async {
+    try {
+      final count = await widget.submissionController.getAttemptCount(
+        widget.exam.id,
+        widget.classId,
+      );
+      if (mounted) {
+        setState(() {
+          _attemptCount   = count;
+          _loadingAttempt = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loadingAttempt = false);
+    }
+  }
+
+  // Học sinh còn lượt làm nếu: chưa hết hạn VÀ số lần làm < maxAttempts
+  bool get _hasAttemptsLeft {
+    if (widget.isOverdue) return false;
+    final count      = _attemptCount ?? 0;
+    final maxAttempts = widget.assignment.maxAttempts;
+    return count < maxAttempts;
+  }
+
+  // Số lượt còn lại
+  int get _attemptsLeft {
+    final count      = _attemptCount ?? 0;
+    final maxAttempts = widget.assignment.maxAttempts;
+    return (maxAttempts - count).clamp(0, maxAttempts);
+  }
+
+  /// Kiểm tra trước khi cho vào thi (gọi lại Firestore để tránh race condition)
+  Future<void> _handleTap(BuildContext context) async {
+    // Luôn re-fetch để tránh race condition (user mở 2 tab, etc.)
+    final latestCount = await widget.submissionController.getAttemptCount(
+      widget.exam.id,
+      widget.classId,
+    );
+    if (!mounted) return;
+
+    if (latestCount >= widget.assignment.maxAttempts) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            widget.assignment.maxAttempts == 1
+                ? 'Bạn đã nộp bài. Đề này chỉ được làm 1 lần.'
+                : 'Bạn đã dùng hết ${widget.assignment.maxAttempts} lượt làm bài.',
+          ),
+          backgroundColor: Colors.red.shade400,
+          behavior: SnackBarBehavior.floating,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
-        child: Row(
-          children: [
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                color: const Color(0xFF10B981).withOpacity(0.12),
-                borderRadius: BorderRadius.circular(14),
+      );
+      return;
+    }
+
+    widget.onStartExam();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.isCompleted && widget.bestSubmission != null) {
+      return _buildCompletedCard(context);
+    }
+    return _buildPendingCard(context);
+  }
+
+  Widget _buildCompletedCard(BuildContext context) {
+    final sub       = widget.bestSubmission!;
+    final canReview = widget.assignment.showAnswerAfterSubmit;
+    final maxAttempts = widget.assignment.maxAttempts;
+
+    // Có thể làm lại: còn lượt VÀ chưa hết hạn
+    final canRetry = !_loadingAttempt && _hasAttemptsLeft;
+
+    final card = Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFECFDF5),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFD1FAE5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              // Icon
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF10B981).withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(Icons.task_alt_rounded,
+                    color: Color(0xFF10B981), size: 28),
               ),
-              child: const Icon(Icons.task_alt_rounded,
-                  color: Color(0xFF10B981), size: 28),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          exam.name,
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Tên đề + điểm
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            widget.exam.name,
+                            style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.textDark),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Text(
+                          '${sub.score.toStringAsFixed(1)} đ',
                           style: const TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.bold,
-                              color: AppColors.textDark),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      Text(
-                        '${submission.score.toStringAsFixed(1)} đ',
-                        style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF10B981)),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      _infoItem(Icons.groups_rounded, className),
-                      const SizedBox(width: 14),
-                      _infoItem(Icons.description_rounded,
-                          '${exam.questions.length} câu'),
-                      const Spacer(),
-                      if (canReview)
-                        Row(children: const [
-                          Icon(Icons.visibility_rounded,
-                              size: 13, color: AppColors.primary),
-                          SizedBox(width: 4),
-                          Text('Xem đáp án',
-                              style: TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.primary,
-                                  fontWeight: FontWeight.w600)),
-                        ])
-                      else
-                        Text(
-                          _getGradeLabel(submission.score),
-                          style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
                               color: Color(0xFF10B981)),
                         ),
-                    ],
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    // Info row
+                    Row(
+                      children: [
+                        _infoItem(Icons.groups_rounded, widget.className),
+                        const SizedBox(width: 14),
+                        _infoItem(Icons.description_rounded,
+                            '${widget.exam.questions.length} câu'),
+                        const Spacer(),
+                        // Số lần làm / tổng lượt
+                        if (maxAttempts > 1)
+                          _loadingAttempt
+                              ? const SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 1.5))
+                              : _infoItem(
+                                  Icons.repeat_rounded,
+                                  'Lần ${_attemptCount ?? sub.attemptNumber}/$maxAttempts',
+                                ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          // Hàng hành động: Xem đáp án + Làm lại 
+          if (canReview || canRetry) ...[
+            const SizedBox(height: 12),
+            const Divider(height: 1, color: Color(0xFFD1FAE5)),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                // Nút "Xem đáp án"
+                if (canReview) ...[
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: widget.onReview,
+                      icon: const Icon(Icons.visibility_rounded, size: 16),
+                      label: const Text('Xem đáp án',
+                          style: TextStyle(fontSize: 13)),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primary,
+                        side: const BorderSide(color: AppColors.primary),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
                   ),
+                  if (canRetry) const SizedBox(width: 10),
                 ],
+                // Nút "Làm lại"
+                if (canRetry)
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () => _handleTap(context),
+                      icon: const Icon(Icons.replay_rounded, size: 16),
+                      label: Text(
+                        'Làm lại (còn $_attemptsLeft lượt)',
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ] else if (!canReview) ...[
+            // Không có nút nào → hiển thị xếp loại nhỏ
+            const SizedBox(height: 6),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                _getGradeLabel(sub.score),
+                style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF10B981)),
               ),
             ),
           ],
-        ),
+        ],
+      ),
+    );
+
+    // Toàn bộ card vẫn tap được để vào review (nếu cho phép)
+    if (canReview) {
+      return GestureDetector(
+        onTap: widget.onReview,
+        child: card,
       );
-
-      if (canReview) {
-        return GestureDetector(
-          onTap: () => _openReview(exam, classId, submission),
-          child: card,
-        );
-      }
-      return card;
     }
+    return card;
+  }
 
-    final badgeText = isOverdue ? 'Hết hạn' : 'Chưa làm';
-    final badgeColor = isOverdue ? Colors.grey : const Color(0xFFFF9800);
-    final iconColor = isOverdue ? Colors.grey : const Color(0xFFFF9800);
+  // Card chưa làm / hết hạn 
+  Widget _buildPendingCard(BuildContext context) {
+    final isOverdue   = widget.isOverdue;
+    final badgeText   = isOverdue ? 'Hết hạn' : 'Chưa làm';
+    final badgeColor  = isOverdue ? Colors.grey : const Color(0xFFFF9800);
+    final iconColor   = isOverdue ? Colors.grey : const Color(0xFFFF9800);
+    final closeAt     = widget.assignment.closeAt;
+    final remaining   = closeAt.difference(DateTime.now());
 
-    final remaining = closeAt.difference(DateTime.now());
     String remainingText = '';
     if (!isOverdue) {
       if (remaining.inDays > 0) {
@@ -371,7 +601,7 @@ class _ListExamsScreenState extends State<ListExamsScreen>
                   children: [
                     Expanded(
                       child: Text(
-                        exam.name,
+                        widget.exam.name,
                         style: const TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.bold,
@@ -400,10 +630,10 @@ class _ListExamsScreenState extends State<ListExamsScreen>
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    _infoItem(Icons.groups_rounded, className),
+                    _infoItem(Icons.groups_rounded, widget.className),
                     const SizedBox(width: 14),
                     _infoItem(Icons.description_rounded,
-                        '${exam.questions.length} câu'),
+                        '${widget.exam.questions.length} câu'),
                     if (remainingText.isNotEmpty) ...[
                       const Spacer(),
                       Text(remainingText,
@@ -423,31 +653,16 @@ class _ListExamsScreenState extends State<ListExamsScreen>
 
     if (!isOverdue) {
       return GestureDetector(
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-              builder: (_) =>
-                  ExamTakeScreen(exam: exam, classId: classId)),
-        ),
+        onTap: () => _handleTap(context),
         child: card,
       );
     }
     return card;
   }
 
-  void _openReview(
-      ExamModel exam, String classId, SubmissionModel submission) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ExamReviewScreen(
-            exam: exam, classId: classId, submission: submission),
-      ),
-    );
-  }
-
   Widget _infoItem(IconData icon, String text) {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Icon(icon, size: 15, color: AppColors.textMedium),
         const SizedBox(width: 5),
@@ -455,20 +670,6 @@ class _ListExamsScreenState extends State<ListExamsScreen>
             style: const TextStyle(
                 fontSize: 12, color: AppColors.textMedium)),
       ],
-    );
-  }
-
-  Widget _buildEmpty(String message) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.inbox_rounded, size: 72, color: Colors.grey.shade300),
-          const SizedBox(height: 16),
-          Text(message,
-              style: TextStyle(fontSize: 15, color: Colors.grey.shade500)),
-        ],
-      ),
     );
   }
 

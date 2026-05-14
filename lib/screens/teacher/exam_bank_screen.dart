@@ -3,6 +3,7 @@ import '../../core/app_colors.dart';
 import '../../widgets/common/custom_button_nav.dart';
 import '../../data/models/exam_model.dart';
 import '../../controllers/exam_controller.dart';
+import '../../data/services/class_cache_service.dart';
 import 'exam_detail_screen.dart';
 
 class ExamBankScreen extends StatefulWidget {
@@ -17,7 +18,7 @@ class _ExamBankScreenState extends State<ExamBankScreen> {
 
   int    _selectedTab  = 0;
   String _searchQuery  = '';
-  
+
   // Khai báo biến lưu Stream để tối ưu hiệu năng
   late final Stream<List<ExamModel>> _examStream;
 
@@ -26,6 +27,10 @@ class _ExamBankScreenState extends State<ExamBankScreen> {
     super.initState();
     // Khởi tạo Stream 1 lần duy nhất để tránh load lại khi gõ tìm kiếm
     _examStream = _controller.streamMyExams();
+    
+    // Warm cache lớp học ngay khi màn này load —
+    // khi user bấm vào đề bất kỳ, AssignExamScreen sẽ hiển thị danh sách lớp tức thì
+    ClassCacheService.instance.warmUp();
   }
 
   // xác nhận và thực hiện xóa đề 
@@ -124,7 +129,8 @@ class _ExamBankScreenState extends State<ExamBankScreen> {
             child: StreamBuilder<List<ExamModel>>(
               stream: _examStream, 
               builder: (context, snapshot) {
-                // Chặn lỗi 
+                
+                // Chặn lỗi trước
                 if (snapshot.hasError) {
                   return Center(
                     child: Text('Đã xảy ra lỗi: ${snapshot.error}', 
@@ -132,18 +138,17 @@ class _ExamBankScreenState extends State<ExamBankScreen> {
                   );
                 }
 
-                // nếu chưa có data (Cache trống), hiện Loading
+                // Chặn Loading bằng !hasData (Tận dụng Cache)
                 if (!snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator());
                 }
 
-                
+                // Ép kiểu 
                 final allExams = snapshot.data!;
-                final exams    = snapshot.data ?? [];
-                final filtered = _filterExams(exams);
+                final filtered = _filterExams(allExams);
 
                 if (filtered.isEmpty) {
-                  return _buildEmptyState(exams.isEmpty);
+                  return _buildEmptyState(allExams.isEmpty);
                 }
 
                 return ListView.builder(

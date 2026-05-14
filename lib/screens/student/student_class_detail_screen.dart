@@ -104,13 +104,18 @@ class _StudentClassDetailScreenState extends State<StudentClassDetailScreen> {
     return StreamBuilder<List<ExamModel>>(
       stream: examController.streamAssignedExamsForStudent(widget.classId),
       builder: (context, examSnap) {
+        if (examSnap.hasError) return const SizedBox.shrink();
+        if (!examSnap.hasData) return const Center(child: CircularProgressIndicator());
+
         return StreamBuilder<Map<String, SubmissionModel>>(
-          stream: submissionController
-              .streamMySubmissionsForClass(widget.classId),
+          stream: submissionController.streamMySubmissionsForClass(widget.classId),
           builder: (context, subSnap) {
-            // Firestore tự cache → dùng data trực tiếp
-            final exams = examSnap.data ?? [];
-            final submissions = subSnap.data ?? {};
+            if (subSnap.hasError) return const SizedBox.shrink();
+            if (!subSnap.hasData) return const Center(child: CircularProgressIndicator());
+
+            // Đã có data từ Cache, ép kiểu an toàn
+            final exams = examSnap.data!;
+            final submissions = subSnap.data!;
 
             final done = submissions.length;
             final total = exams.length;
@@ -233,8 +238,11 @@ class _StudentClassDetailScreenState extends State<StudentClassDetailScreen> {
           );
         }
 
-        // Firestore tự cache → dùng data trực tiếp
-        final exams = examSnap.data ?? [];
+        if (!examSnap.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final exams = examSnap.data!;
 
         if (exams.isEmpty) {
           return const Center(
@@ -254,11 +262,12 @@ class _StudentClassDetailScreenState extends State<StudentClassDetailScreen> {
         }
 
         return StreamBuilder<Map<String, SubmissionModel>>(
-          stream: submissionController
-              .streamMySubmissionsForClass(widget.classId),
+          stream: submissionController.streamMySubmissionsForClass(widget.classId),
           builder: (context, subSnap) {
-            // Firestore tự cache → dùng data trực tiếp
-            final submissions = subSnap.data ?? {};
+            if (subSnap.hasError) return const SizedBox.shrink();
+            if (!subSnap.hasData) return const Center(child: CircularProgressIndicator());
+
+            final submissions = subSnap.data!;
             final filtered = _filterExams(exams, submissions);
 
             if (filtered.isEmpty) {
@@ -441,8 +450,9 @@ class _StudentClassDetailScreenState extends State<StudentClassDetailScreen> {
                         const Icon(Icons.check_rounded,
                             size: 13, color: AppColors.success),
                         const SizedBox(width: 4),
+                        // ĐÃ SỬA: Xóa FutureBuilder thừa, lấy thẳng attemptNumber từ submission model!
                         Text(
-                          '${submission.correctCount}/${submission.totalCount} câu đúng',
+                          '${submission.correctCount}/${submission.totalCount} câu đúng • Lần ${submission.attemptNumber}/${assignment.maxAttempts}',
                           style: const TextStyle(
                               fontSize: 12, color: AppColors.success),
                         ),
@@ -495,15 +505,64 @@ class _StudentClassDetailScreenState extends State<StudentClassDetailScreen> {
         );
       }
 
-      return Row(children: const [
-        Icon(Icons.task_alt_rounded, color: AppColors.success, size: 18),
-        SizedBox(width: 4),
-        Text('Đã nộp',
-            style: TextStyle(
-                color: AppColors.success,
-                fontWeight: FontWeight.w600,
-                fontSize: 13)),
-      ]);
+      // Kiểm tra xem có thể làm lại không
+      return FutureBuilder<int>(
+        future: submissionController.getAttemptCount(exam.id, widget.classId),
+        builder: (context, attemptSnap) {
+          if (!attemptSnap.hasData) {
+             return const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2));
+          }
+
+          final attemptCount = attemptSnap.data!;
+          final canRetake = assignment.maxAttempts > 1 && attemptCount < assignment.maxAttempts && isOpen;
+
+          if (canRetake) {
+            return Row(
+              children: [
+                ElevatedButton.icon(
+                  onPressed: () => _startExam(exam),
+                  icon: const Icon(Icons.refresh_rounded, size: 16),
+                  label: Text('Làm lại ($attemptCount/${assignment.maxAttempts})'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30)),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    textStyle: const TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  onPressed: () => _openReview(exam, submission),
+                  icon: const Icon(Icons.visibility_rounded, size: 16),
+                  label: const Text('Xem đáp án'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30)),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    textStyle: const TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            );
+          }
+
+          return Row(children: const [
+            Icon(Icons.task_alt_rounded, color: AppColors.success, size: 18),
+            SizedBox(width: 4),
+            Text('Đã nộp',
+                style: TextStyle(
+                    color: AppColors.success,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13)),
+          ]);
+        },
+      );
     }
 
     if (isOverdue) {

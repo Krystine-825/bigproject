@@ -28,7 +28,8 @@ class SubmissionModel {
   final int totalCount;
   final String status; // 'submitted'
   final String submittedAt;
-  final int durationSeconds; 
+  final int durationSeconds;
+  final int attemptNumber; 
 
   const SubmissionModel({
     required this.id,
@@ -42,6 +43,7 @@ class SubmissionModel {
     required this.status,
     required this.submittedAt,
     required this.durationSeconds,
+    required this.attemptNumber, // ← MỚI
   });
 
   factory SubmissionModel.fromJson(Map<String, dynamic> json,
@@ -60,6 +62,7 @@ class SubmissionModel {
       status: json['status'] as String? ?? 'submitted',
       submittedAt: json['submitted_at'] as String? ?? '',
       durationSeconds: (json['duration_seconds'] as num?)?.toInt() ?? 0,
+      attemptNumber: (json['attempt_number'] as num?)?.toInt() ?? 1, // ← MỚI
     );
   }
 
@@ -74,5 +77,6 @@ class SubmissionModel {
         'status': status,
         'submitted_at': submittedAt,
         'duration_seconds': durationSeconds,
+        'attempt_number': attemptNumber, // ← MỚI
       };
 }

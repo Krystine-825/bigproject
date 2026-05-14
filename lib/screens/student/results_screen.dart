@@ -9,20 +9,15 @@ class StudentResultsScreen extends StatefulWidget {
 
   @override
   State<StudentResultsScreen> createState() => _StudentResultsScreenState();
-
 }
 
 class _StudentResultsScreenState extends State<StudentResultsScreen> {
   final ctrl = StudentResultsController();
 
-
-
-
   static const int pageSize = 4;
   int currentPage = 1;
 
   double _avgScore(List<Map<String, dynamic>> results) => results.isEmpty
-
       ? 0.0
       : double.parse(
           (results.fold(0.0, (s, r) => s + ((r['score'] as num).toDouble())) /
@@ -33,27 +28,8 @@ class _StudentResultsScreenState extends State<StudentResultsScreen> {
   int _totalClasses(List<Map<String, dynamic>> results) =>
       results.map((r) => r['classId'] as String).toSet().length;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   int _totalPages(int total) =>
       total == 0 ? 1 : (total / pageSize).ceil();
-
 
   List<Map<String, dynamic>> _pageItems(List<Map<String, dynamic>> results) {
     final start = (currentPage - 1) * pageSize;
@@ -92,22 +68,6 @@ class _StudentResultsScreenState extends State<StudentResultsScreen> {
       'label': 'Yếu', 'color': const Color(0xFFEF4444),
       'bg': const Color(0xFFFFF1F2), 'icon': Icons.warning_rounded,
     };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   }
 
   @override
@@ -118,12 +78,19 @@ class _StudentResultsScreenState extends State<StudentResultsScreen> {
       body: StreamBuilder<List<Map<String, dynamic>>>(
         stream: ctrl.streamResults(),
         builder: (context, snapshot) {
+          
+          // Chặn lỗi trước tiên
           if (snapshot.hasError) {
             return const Center(child: Text('Lỗi tải dữ liệu'));
           }
 
-          // Firestore tự cache → dùng data trực tiếp, không chặn bằng waiting
-          final results = snapshot.data ?? [];
+          // Chặn Loading (Nếu Cache hoặc mạng chưa trả data về) -> Không bị chớp màn hình rỗng
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          // Đã có Data thì ép kiểu an toàn
+          final results = snapshot.data!;
 
           return RefreshIndicator(
             onRefresh: () async {
@@ -165,7 +132,6 @@ class _StudentResultsScreenState extends State<StudentResultsScreen> {
             fontSize: 16,
             fontWeight: FontWeight.bold,
             color: Color(0xFF1E293B)),
-
       ),
       bottom: PreferredSize(
         preferredSize: const Size.fromHeight(1),
@@ -187,7 +153,6 @@ class _StudentResultsScreenState extends State<StudentResultsScreen> {
               color: Colors.black.withOpacity(0.04),
               blurRadius: 12,
               offset: const Offset(0, 4)),
-
         ],
       ),
       child: Column(
@@ -216,7 +181,6 @@ class _StudentResultsScreenState extends State<StudentResultsScreen> {
                           fontWeight: FontWeight.bold,
                           color: Color(0xFF0F172A),
                           height: 1),
-
                     ),
                     const SizedBox(height: 4),
                     const Text(
@@ -226,7 +190,6 @@ class _StudentResultsScreenState extends State<StudentResultsScreen> {
                           fontWeight: FontWeight.bold,
                           color: Color(0xFF94A3B8),
                           letterSpacing: 1.2),
-
                     ),
                   ],
                 ),
@@ -240,7 +203,6 @@ class _StudentResultsScreenState extends State<StudentResultsScreen> {
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
                 color: Color(0xFF1E293B)),
-
           ),
           const SizedBox(height: 4),
           Text(
@@ -262,7 +224,6 @@ class _StudentResultsScreenState extends State<StudentResultsScreen> {
               fontWeight: FontWeight.bold,
               color: Color(0xFF94A3B8),
               letterSpacing: 1.2),
-
         ),
       ],
     );
@@ -285,7 +246,6 @@ class _StudentResultsScreenState extends State<StudentResultsScreen> {
               color: Colors.black.withOpacity(0.04),
               blurRadius: 10,
               offset: const Offset(0, 4)),
-
         ],
       ),
       child: Row(
@@ -312,7 +272,6 @@ class _StudentResultsScreenState extends State<StudentResultsScreen> {
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
                       color: Color(0xFF1E293B)),
-
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -338,7 +297,6 @@ class _StudentResultsScreenState extends State<StudentResultsScreen> {
                     fontWeight: FontWeight.bold,
                     color: AppColors.primary,
                     height: 1),
-
               ),
               const SizedBox(height: 4),
               Text(
@@ -348,7 +306,6 @@ class _StudentResultsScreenState extends State<StudentResultsScreen> {
                     fontWeight: FontWeight.bold,
                     color: grade['color'] as Color,
                     letterSpacing: 0.5),
-
               ),
             ],
           ),
@@ -363,8 +320,7 @@ class _StudentResultsScreenState extends State<StudentResultsScreen> {
         Icon(icon, size: 14, color: const Color(0xFF94A3B8)),
         const SizedBox(width: 4),
         Text(label,
-            style:
-                const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+            style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
       ],
     );
   }
@@ -414,17 +370,12 @@ class _StudentResultsScreenState extends State<StudentResultsScreen> {
         decoration: BoxDecoration(
           color: isActive ? AppColors.primary : Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border:
-              isActive ? null : Border.all(color: const Color(0xFFE2E8F0)),
-
+          border: isActive ? null : Border.all(color: const Color(0xFFE2E8F0)),
           boxShadow: isActive
               ? [BoxShadow(
                   color: AppColors.primary.withOpacity(0.3),
                   blurRadius: 8,
                   offset: const Offset(0, 2))]
-
-
-
               : null,
         ),
         child: Center(
@@ -433,9 +384,6 @@ class _StudentResultsScreenState extends State<StudentResultsScreen> {
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
                   color: isActive ? Colors.white : const Color(0xFF475569))),
-
-
-
         ),
       ),
     );
@@ -458,9 +406,7 @@ class _StudentResultsScreenState extends State<StudentResultsScreen> {
         ),
         child: Icon(icon,
             size: 22,
-            color: enabled
-                ? const Color(0xFF475569)
-                : const Color(0xFFCBD5E1)),
+            color: enabled ? const Color(0xFF475569) : const Color(0xFFCBD5E1)),
       ),
     );
   }
@@ -477,14 +423,9 @@ class _StudentResultsScreenState extends State<StudentResultsScreen> {
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
                   color: Color(0xFF94A3B8))),
-
-
-
           SizedBox(height: 4),
           Text('Bài làm sau khi nộp sẽ hiển thị ở đây',
-              style:
-                  TextStyle(fontSize: 12, color: Color(0xFFCBD5E1))),
-
+              style: TextStyle(fontSize: 12, color: Color(0xFFCBD5E1))),
         ],
       ),
     );
@@ -514,9 +455,6 @@ class _CircleProgressPainter extends CustomPainter {
           ..style = PaintingStyle.stroke
           ..strokeWidth = strokeWidth);
 
-
-
-
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: radius),
       -math.pi / 2,
@@ -532,5 +470,4 @@ class _CircleProgressPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_CircleProgressPainter old) => old.progress != progress;
-
 }

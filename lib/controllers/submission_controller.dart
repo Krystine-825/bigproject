@@ -11,6 +11,67 @@ class SubmissionController {
 
   String get _myUid => auth.currentUid ?? '';
 
+  // Lấy số attempt tiếp theo cho bài thi này
+  Future<int> _getNextAttemptNumber(String examId, String classId) async {
+    final snap = await firestore.queryWhere(
+      'submissions',
+      field: 'exam_id',
+      isEqualTo: examId,
+      field2: 'student_id',
+      isEqualTo2: _myUid,
+    );
+
+    if (snap.docs.isEmpty) return 1;
+
+    // Tìm attempt number cao nhất
+    int maxAttempt = 0;
+    for (final doc in snap.docs) {
+      final data = doc.data();
+      final attempt = (data['attempt_number'] as num?)?.toInt() ?? 1;
+      if (attempt > maxAttempt) maxAttempt = attempt;
+    }
+
+    return maxAttempt + 1;
+  }
+
+  // Lấy số attempt đã làm cho bài thi này
+  Future<int> getAttemptCount(String examId, String classId) async {
+    final snap = await firestore.queryWhere(
+      'submissions',
+      field: 'exam_id',
+      isEqualTo: examId,
+      field2: 'student_id',
+      isEqualTo2: _myUid,
+    );
+    return snap.docs.length;
+  }
+
+  // Lấy submission tốt nhất (điểm cao nhất, nếu bằng điểm thì lấy lần làm gần nhất)
+  Future<SubmissionModel?> getBestSubmission(String examId, String classId) async {
+    final snap = await firestore.queryWhere(
+      'submissions',
+      field: 'exam_id',
+      isEqualTo: examId,
+      field2: 'student_id',
+      isEqualTo2: _myUid,
+    );
+
+    if (snap.docs.isEmpty) return null;
+
+    SubmissionModel? best;
+    for (final doc in snap.docs) {
+      final submission = SubmissionModel.fromJson(doc.data(), id: doc.id);
+      if (best == null ||
+          submission.score > best.score ||
+          (submission.score == best.score &&
+           DateTime.parse(submission.submittedAt).isAfter(DateTime.parse(best.submittedAt)))) {
+        best = submission;
+      }
+    }
+
+    return best;
+  }
+
   // Nộp bài 
 
   Future<SubmissionModel> submitExam({
@@ -22,6 +83,9 @@ class SubmissionController {
     String examName = '', 
   }) async {
     if (_myUid.isEmpty) throw Exception('Chưa đăng nhập');
+
+    // Lấy attempt number tiếp theo
+    final attemptNumber = await _getNextAttemptNumber(examId, classId);
 
     int correct = 0;
     final answers = <SubmissionAnswer>[];
@@ -47,6 +111,7 @@ class SubmissionController {
       status: 'submitted',
       submittedAt: DateTime.now().toIso8601String(),
       durationSeconds: durationSeconds,
+      attemptNumber: attemptNumber, // ← MỚI
     );
 
     final docRef =
@@ -154,33 +219,33 @@ class SubmissionController {
     }
   }
 
- 
+
 
   Future<SubmissionModel?> getMySubmission(
       {required String examId, required String classId}) async {
-    if (_myUid.isEmpty) return null;
-    try {
-      final snap = await firestore.queryWhere(
-        'submissions',
-        field: 'exam_id',
-        isEqualTo: examId,
-      );
-      final doc = snap.docs.firstWhere(
-        (d) =>
-            d.data()['student_id'] == _myUid &&
-            d.data()['class_id'] == classId,
-        orElse: () => throw StateError('not found'),
-      );
-      return SubmissionModel.fromJson(doc.data(), id: doc.id);
-    } catch (_) {
-      return null;
-    }
+    return getBestSubmission(examId, classId);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   }
 
 
  Stream<Map<String, SubmissionModel>> streamMySubmissionsForClass(String classId) {
     if (_myUid.isEmpty) return Stream.value({});
-    
+
     // gọi thẳng lên Firebase với 2 điều kiện (cần tạo Composite Index trên Firebase Console)
     return firestore
         .streamWhere(
@@ -194,7 +259,14 @@ class SubmissionController {
           final map = <String, SubmissionModel>{};
           for (final d in snap.docs) {
             final sub = SubmissionModel.fromJson(d.data(), id: d.id);
-            map[sub.examId] = sub;
+            // Lấy submission tốt nhất cho mỗi exam (điểm cao nhất, nếu bằng điểm thì lấy lần gần nhất)
+            final existing = map[sub.examId];
+            if (existing == null ||
+                sub.score > existing.score ||
+                (sub.score == existing.score &&
+                 DateTime.parse(sub.submittedAt).isAfter(DateTime.parse(existing.submittedAt)))) {
+              map[sub.examId] = sub;
+            }
           }
           return map;
         });
@@ -244,5 +316,4 @@ class SubmissionController {
         return studentAnswer == correctAnswer;
     }
   }
-
 }

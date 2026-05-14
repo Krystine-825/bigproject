@@ -144,7 +144,10 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: classController.streamStudentClasses(),
       builder: (context, classSnap) {
-        final classes = classSnap.data ?? [];
+        if (classSnap.hasError) return _statsRow(pending: 0, newToday: 0, done: 0);
+        if (!classSnap.hasData) return const SizedBox(height: 100, child: Center(child: CircularProgressIndicator()));
+
+        final classes = classSnap.data!;
         final classIds = classes.map((c) => c['classId'] as String).toList();
 
         if (classIds.isEmpty) {
@@ -156,14 +159,18 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
             classIds.isNotEmpty ? classIds.first : '',
           ),
           builder: (context, subSnap) {
-            final submissions = subSnap.data ?? {};
+            if (subSnap.hasError) return _statsRow(pending: 0, newToday: 0, done: 0);
+            if (!subSnap.hasData) return const SizedBox(height: 100, child: Center(child: CircularProgressIndicator()));
+            
+            final submissions = subSnap.data!;
 
             return FutureBuilder<_HomeStats>(
               future: _computeStats(classIds, submissions),
               builder: (context, statSnap) {
-                final stats =
-                    statSnap.data ??
-                    _HomeStats(pending: 0, newToday: 0, done: 0);
+                if (statSnap.hasError) return _statsRow(pending: 0, newToday: 0, done: 0);
+                if (!statSnap.hasData) return const SizedBox(height: 100, child: Center(child: CircularProgressIndicator()));
+                
+                final stats = statSnap.data!;
                 return _statsRow(
                   pending: stats.pending,
                   newToday: stats.newToday,
@@ -295,10 +302,10 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: classController.streamStudentClasses(),
       builder: (context, classSnap) {
-        final classes = classSnap.data ?? [];
-        if (classes.isEmpty) {
-          return const SizedBox.shrink();
-        }
+        if (classSnap.hasError) return const SizedBox.shrink();
+        if (!classSnap.hasData) return const Center(child: CircularProgressIndicator());
+        
+        final classes = classSnap.data!;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -314,74 +321,185 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
                     color: AppColors.textDark,
                   ),
                 ),
-                GestureDetector(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const ListExamsScreen(),
+                if (classes.isNotEmpty)
+                  GestureDetector(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ListExamsScreen(),
+                      ),
+                    ),
+                    child: const Text(
+                      'Xem tất cả >',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
-                  child: const Text(
-                    'Xem tất cả >',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
               ],
             ),
             const SizedBox(height: 16),
-            ...classes
-                .take(3)
-                .map(
-                  (cls) => _buildClassExams(
-                    cls['classId'] as String,
-                    cls['name'] as String,
+            if (classes.isEmpty)
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 32),
+                  child: Column(
+                    children: [
+                      Icon(Icons.description_rounded,
+                          size: 56, color: Colors.grey.shade300),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Bạn chưa có đề thi nào',
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
+              )
+            else
+              FutureBuilder<bool>(
+                future: _hasAnyExams(classes),
+                builder: (context, hasExamsSnap) {
+                  if (hasExamsSnap.hasError) return const SizedBox.shrink();
+                  if (!hasExamsSnap.hasData) return const Center(child: CircularProgressIndicator());
+                  
+                  final hasExams = hasExamsSnap.data!;
+                  
+                  if (!hasExams) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 32),
+                        child: Column(
+                          children: [
+                            Icon(Icons.description_rounded,
+                                size: 56, color: Colors.grey.shade300),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Bạn chưa có đề thi nào',
+                              style: TextStyle(
+                                fontSize: 15,
+                                color: Colors.grey.shade500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }
+                  
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ...classes
+                          .take(3)
+                          .map(
+                            (cls) => _buildClassExams(
+                              cls['classId'] as String,
+                              cls['name'] as String,
+                            ),
+                          ),
+                    ],
+                  );
+                },
+              ),
           ],
         );
       },
     );
   }
 
+  // Kiểm tra xem có exam nào từ các class không
+  Future<bool> _hasAnyExams(List<Map<String, dynamic>> classes) async {
+    for (final cls in classes) {
+      try {
+        final exams = await examController
+            .streamAssignedExamsForStudent(cls['classId'] as String)
+            .first;
+        if (exams.isNotEmpty) {
+          return true;
+        }
+      } catch (_) {}
+    }
+    return false;
+  }
+
   Widget _buildClassExams(String classId, String className) {
     return StreamBuilder<List<ExamModel>>(
       stream: examController.streamAssignedExamsForStudent(classId),
       builder: (context, snap) {
-        final exams = snap.data ?? [];
+        if (snap.hasError) return const SizedBox.shrink();
+        if (!snap.hasData) return const SizedBox.shrink();
+        
+        final exams = snap.data!;
         if (exams.isEmpty) return const SizedBox.shrink();
 
         return StreamBuilder<Map<String, SubmissionModel>>(
           stream: submissionController.streamMySubmissionsForClass(classId),
           builder: (context, subSnap) {
-            final submissions = subSnap.data ?? {};
+            if (subSnap.hasError) return const SizedBox.shrink();
+            if (!subSnap.hasData) return const SizedBox.shrink();
+            
+            final submissions = subSnap.data!;
             final now = DateTime.now();
 
-            final displayExams = exams.take(5).toList();
+            //Sắp xếp exam: sắp deadline lên đầu, rồi sắp xếp theo assignedAt (mới nhất trước)
+            final sortedExams = List<ExamModel>.from(exams);
+            sortedExams.sort((a, b) {
+              final assignmentA = a.assignments.firstWhere(
+                (x) => x.classId == classId,
+                orElse: () => a.assignments.first,
+              );
+              final assignmentB = b.assignments.firstWhere(
+                (x) => x.classId == classId,
+                orElse: () => b.assignments.first,
+              );
+              
+              // Tính khoảng cách từ now đến deadline
+              final timeUntilA = assignmentA.closeAt.difference(now).inHours;
+              final timeUntilB = assignmentB.closeAt.difference(now).inHours;
+              
+              // Nếu cả hai còn hạn, sắp xếp theo deadline (gần nhất lên đầu)
+              if (timeUntilA > 0 && timeUntilB > 0) {
+                return timeUntilA.compareTo(timeUntilB);
+              }
+              
+              // Nếu một cái hết hạn, cái còn hạn lên đầu
+              if (timeUntilA <= 0 && timeUntilB > 0) return 1;
+              if (timeUntilA > 0 && timeUntilB <= 0) return -1;
+              
+              // Cả hai hết hạn hoặc cả hai lâu, sắp xếp theo assigned date (mới nhất trước)
+              final dateA = DateTime.tryParse(assignmentA.assignedAt) ?? DateTime(2000);
+              final dateB = DateTime.tryParse(assignmentB.assignedAt) ?? DateTime(2000);
+              return dateB.compareTo(dateA);
+            });
+
+            final displayExams = sortedExams.take(5).toList();
 
             return Column(
-              children: displayExams.map((exam) {
-                final sub = submissions[exam.id];
-                final assignment = exam.assignments.firstWhere(
-                  (a) => a.classId == classId,
-                  orElse: () => exam.assignments.first,
-                );
-                final isOverdue = assignment.closeAt.isBefore(now);
-                final isCompleted = sub != null;
+                children: displayExams.map((exam) {
+                  final sub = submissions[exam.id];
+                  final assignment = exam.assignments.firstWhere(
+                    (a) => a.classId == classId,
+                    orElse: () => exam.assignments.first,
+                  );
+                  final isOverdue = assignment.closeAt.isBefore(now);
+                  final isCompleted = sub != null;
 
-                return _buildHomeExamCard(
-                  exam: exam,
-                  classId: classId,           // ← MỚI
-                  className: className,
-                  assignment: assignment,     // ← MỚI
-                  submission: sub,
-                  isOverdue: isOverdue,
-                  isCompleted: isCompleted,
-                );
-              }).toList(),
+                  return _buildHomeExamCard(
+                    exam: exam,
+                    classId: classId,           // ← MỚI
+                    className: className,
+                    assignment: assignment,     // ← MỚI
+                    submission: sub,
+                    isOverdue: isOverdue,
+                    isCompleted: isCompleted,
+                  );
+                }).toList(),
             );
           },
         );
