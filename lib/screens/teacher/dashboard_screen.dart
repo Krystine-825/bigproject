@@ -24,15 +24,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final _classController = ClassController();
   final _examController = ExamController();
 
-  // Khởi tạo 1 lần duy nhất — tránh tạo stream mới mỗi lần rebuild
-  late final Stream<List<ClassModel>> _classStream;
-  late final Stream<List<ExamModel>> _examStream;
-
   @override
   void initState() {
     super.initState();
-    _classStream = _classController.streamMyClasses();
-    _examStream  = _examController.streamMyExams();
     _loadName();
   }
 
@@ -147,20 +141,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
       child: StreamBuilder<List<ClassModel>>(
-        stream: _classStream,
+        // 💡 GỌI TRỰC TIẾP: Firebase sẽ tự lo phần Cache
+        stream: _classController.streamMyClasses(),
         builder: (context, classSnap) {
           
           if (classSnap.hasError) return const SizedBox.shrink();
-          // Chờ data để không bị chớp (giữ khung layout 100px để giao diện không bị giật)
           if (!classSnap.hasData) return const SizedBox(height: 100, child: Center(child: CircularProgressIndicator()));
 
           return StreamBuilder<List<ExamModel>>(
-            stream: _examStream,
+            // 💡 GỌI TRỰC TIẾP
+            stream: _examController.streamMyExams(),
             builder: (context, examSnap) {
               if (examSnap.hasError) return const SizedBox.shrink();
               if (!examSnap.hasData) return const SizedBox(height: 100, child: Center(child: CircularProgressIndicator()));
 
-              // Đã có data chắc chắn 100%
               final classes = classSnap.data!;
               final classCount = classes.length;
               final studentCount = classes.fold<int>(
@@ -279,7 +273,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         SizedBox(
           height: 40,
           child: StreamBuilder<List<ClassModel>>(
-            stream: _classStream,
+            // 💡 GỌI TRỰC TIẾP
+            stream: _classController.streamMyClasses(),
             builder: (context, snapshot) {
               if (snapshot.hasError) {
                 return const Center(
@@ -287,7 +282,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 );
               }
 
-              // Chờ Data, loại bỏ hẳn ConnectionState
               if (!snapshot.hasData) {
                 return const Center(
                   child: SizedBox(
@@ -384,8 +378,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
         _RecentActivitiesWidget(
-          classStream: _classStream,
-          examStream:  _examStream,
+          // 💡 Truyền hẳn Controller vào để dùng hàm Stream
+          classController: _classController,
+          examController: _examController,
         ),
       ],
     );
@@ -393,12 +388,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
 }
 
 class _RecentActivitiesWidget extends StatelessWidget {
-  final Stream<List<ClassModel>> classStream;
-  final Stream<List<ExamModel>>  examStream;
+  final ClassController classController;
+  final ExamController examController;
 
   const _RecentActivitiesWidget({
-    required this.classStream,
-    required this.examStream,
+    required this.classController,
+    required this.examController,
   });
 
   String _timeAgo(String isoString) {
@@ -418,13 +413,13 @@ class _RecentActivitiesWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<ExamModel>>(
-      stream: examStream,
+      stream: examController.streamMyExams(),
       builder: (context, examSnap) {
         if (examSnap.hasError) return const SizedBox.shrink();
         if (!examSnap.hasData) return const Center(child: CircularProgressIndicator());
 
         return StreamBuilder<List<ClassModel>>(
-          stream: classStream,
+          stream: classController.streamMyClasses(),
           builder: (context, classSnap) {
             if (classSnap.hasError) return const SizedBox.shrink();
             if (!classSnap.hasData) return const Center(child: CircularProgressIndicator());

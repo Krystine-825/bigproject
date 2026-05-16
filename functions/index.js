@@ -300,28 +300,43 @@ async function _callOpenAI(text, config) {
   }
 }
 
-// prompt hệ thống đã siết chặt luật "Câu hỏi độc lập"
+function _getCEFRDescription(level) {
+  const cefrGuides = {
+    'A1': 'A1 (Beginner): Everyday vocabulary, simple present/continuous, basic prepositions, pronouns.',
+    'A2': 'A2 (Elementary): Past simple, future (will/going to), comparatives, basic modals (can, must), daily life vocabulary.',
+    'B1': 'B1 (Intermediate): Present perfect, past continuous, conditionals (0, 1st, 2nd), relative clauses, gerunds/infinitives.',
+    'B2': 'B2 (Upper-Intermediate): Past perfect, complex conditionals, reported speech, passive voice, phrasal verbs, idioms.',
+    'C1': 'C1 (Advanced): Inversions, cleft sentences, subjunctive, nuanced vocabulary, collocations.',
+    'C2': 'C2 (Proficient): Near-native nuance, obscure vocabulary, cultural idioms, complex layered sentences.'
+  };
+  return cefrGuides[level] || cefrGuides['B1'];
+}
+
+// Prompt Hệ thống (Kỷ luật sắt)
 function _buildSystemPrompt(typeInstructions, targetCEFR) {
-  return `You are an expert English language teacher and exam designer. Your task is to create an English exam strictly targeted at the **${targetCEFR}** CEFR level based on the provided text.
+  const cefrGuide = _getCEFRDescription(targetCEFR);
 
-CRITICAL RULES (STRICTLY ENFORCED):
-1. 100% SELF-CONTAINED QUESTIONS: The student will NOT see the original text. EVERY question MUST provide full context within itself so it makes perfect sense on its own.
-2. NO EXTERNAL REFERENCES: NEVER use phrases like "according to the passage", "in paragraph 2", or "for Question 14". 
-3. ADAPT, DON'T COPY: If you extract a sentence from a reading passage to test vocabulary or grammar, you MUST rewrite it into a standalone, logical sentence.
-4. NO READING COMPREHENSION: DO NOT test facts from stories or articles (e.g., "Singapore is a dirty city"). Test ONLY general English Grammar and Vocabulary rules.
-5. TARGET LEVEL: All questions, correct answers, and distractors MUST strictly align with the ${targetCEFR} CEFR level.
-6. LANGUAGE: The entire output MUST be 100% in English. NO Vietnamese.
+  return `You are an expert English exam creator. Your task is to create a BRAND NEW, STANDALONE English Grammar and Vocabulary quiz strictly at the **${targetCEFR}** CEFR level.
 
-OUTPUT FORMAT:
-Return a valid JSON object strictly matching this structure:
+CEFR LEVEL GUIDELINE:
+${cefrGuide}
+
+CRITICAL RULES (FAILING THESE WILL RUIN THE APP):
+1. THE INPUT IS MAYBE AN OLD EXAMS: The text I provide is probrably an old, messy exam, reading passage, or OCR text. It contains questions, reading passages, and question numbers.
+2. DO NOT BE A PHOTOCOPIER: You MUST NEVER copy existing questions from the text. You MUST NEVER copy reading comprehension questions (e.g., "What is the main idea?", "What does 'they' refer to?").
+3. 100% STANDALONE SENTENCES: Every single question you create MUST be a completely new, invented sentence that makes perfect sense on its own. The student will NEVER see the input text.
+4. PURE GRAMMAR & VOCABULARY: Only test grammar rules, verb tenses, prepositions, or vocabulary meanings.
+5. BAN LIST: You are STRICTLY FORBIDDEN from using the following words in your questions or explanations: "passage", "text", "author", "paragraph", "Question", "line".
+
+OUTPUT FORMAT (Valid JSON Only):
 {
   "questions": [
     {
       "type": "multiple_choice" | "fill_in" | "true_false",
-      "question": "string",
-      "options": ["A. ...", "B. ...", "C. ...", "D. ..."], // For multiple_choice ONLY. MUST include "A.", "B.", "C.", "D." prefixes.
-      "answer": "string", 
-      "explanation": "A concise explanation of the grammar rule or vocabulary usage."
+      "question": "string (The newly invented standalone sentence)",
+      "options": ["A. ...", "B. ...", "C. ...", "D. ..."], // For multiple_choice ONLY.
+      "answer": "string (The exact correct answer)", 
+      "explanation": "string (Explain the grammar/vocab rule universally, DO NOT mention the source text)"
     }
   ]
 }
@@ -329,38 +344,34 @@ Return a valid JSON object strictly matching this structure:
 ${typeInstructions}`;
 }
 
-
-// hướng dẫn theo từng loại câu hỏi đã được thiết kế lại
+// Hướng dẫn chi tiết từng loại câu hỏi
 function _buildTypeInstructions(types) {
   const instructions = [];
 
   if (types.includes('multiple_choice')) {
     instructions.push(`MULTIPLE CHOICE rules:
-- Provide exactly 4 options (A, B, C, D).
-- Provide a COMPLETE sentence with a blank "___" to test grammar/vocabulary, OR provide a standalone sentence and ask for a synonym.
-- NEVER ask "Which word fits in Question 14?". You must write the full sentence containing the blank.`);
+- Provide 4 options prefixed exactly with "A. ", "B. ", "C. ", "D. ".
+- Provide a COMPLETE, standalone sentence with a blank "___" to test grammar/vocabulary.
+- Example: "I ________ to the market when it started raining." (A. went, B. was going, C. go, D. am going)`);
   }
 
   if (types.includes('fill_in')) {
     instructions.push(`FILL IN THE BLANK rules:
-- Use "___" to mark the blank in a COMPLETE, self-contained sentence.
-- The sentence MUST have enough context clues for the student to deduce the answer logically without needing any external text.
-- Answer is a single word or short phrase (max 4 words).`);
+- Provide a COMPLETE, standalone sentence with a blank "___".
+- Example: "She is very good ___ playing the piano." (Answer: at)`);
   }
 
   if (types.includes('true_false')) {
-    instructions.push(`TRUE/FALSE rules (GRAMMAR/VOCAB ONLY):
-- DO NOT test facts from the source text (e.g., "John went to the store" -> True/False). The student hasn't read the text!
-- INSTEAD, test grammar rules, vocabulary definitions, or spelling.
-- Example of a GOOD True/False question: "The word 'rapidly' functions as an adjective in English." (Answer: False)
-- Example of a GOOD True/False question: "In the sentence 'She has went to Paris', the verb tense is grammatically correct." (Answer: False)`);
+    instructions.push(`TRUE/FALSE rules:
+- Test UNIVERSAL grammar rules, spelling, or vocabulary. DO NOT test facts.
+- Example: "The plural form of 'child' is 'childrens'." (Answer: False)
+- Example: "The word 'rapidly' is an adverb." (Answer: True)`);
   }
 
   return instructions.join('\n\n');
 }
 
-
-// prompt người dùng
+// Prompt Người dùng
 function _buildUserPrompt(text, questionCount, types, targetCEFR) {
   const typesLabel = types.map(t => ({
     multiple_choice: 'multiple_choice',
@@ -368,19 +379,21 @@ function _buildUserPrompt(text, questionCount, types, targetCEFR) {
     true_false:      'true_false',
   }[t])).join(', ');
 
-  return `Create a ${targetCEFR} English exam based strictly on the text provided below.
+  return `Generate EXACTLY ${questionCount} STANDALONE grammar/vocabulary questions at the ${targetCEFR} level.
 
-TASK REQUIREMENTS:
-1. Level: ALL questions MUST be exactly at the ${targetCEFR} level.
-2. Quantity: Generate EXACTLY ${questionCount} questions.
-3. Permitted Types: Use ONLY these formats: ${typesLabel}.
+Question Types allowed: ${typesLabel}.
 
-TEXT TO USE:
+MANDATORY INSTRUCTIONS:
+- Look at the text below ONLY to find vocabulary words or grammar topics.
+- IGNORE all formatting, question numbers, reading passages, and stories in the text.
+- INVENT ${questionCount} completely new, unrelated sentences to test the students.
+
+SOURCE TEXT FOR VOCAB INSPIRATION ONLY:
 """
 ${text}
 """
 
-Return EXACTLY ${questionCount} items in JSON format. Do not stop until you reach this exact number.`;
+Generate the JSON output now.`;
 }
 
 
