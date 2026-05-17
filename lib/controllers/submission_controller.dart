@@ -73,7 +73,6 @@ class SubmissionController {
   }
 
   // Nộp bài 
-
   Future<SubmissionModel> submitExam({
     required String examId,
     required String classId,
@@ -111,7 +110,7 @@ class SubmissionController {
       status: 'submitted',
       submittedAt: DateTime.now().toIso8601String(),
       durationSeconds: durationSeconds,
-      attemptNumber: attemptNumber, // ← MỚI
+      attemptNumber: attemptNumber, 
     );
 
     final docRef =
@@ -199,7 +198,7 @@ class SubmissionController {
           totalCount: totalCount,
         );
 
-        // GV: cột mốc 100% (submittedCount đã bao gồm bài vừa nộp)
+        // GV: cột mốc 100% 
         if (totalCount > 0 && submittedCount >= totalCount) {
           final classDoc = await firestore.getDocument('classes', classId);
           final className =
@@ -214,39 +213,17 @@ class SubmissionController {
           );
         }
       }
-    } catch (_) {
-      // Lỗi thông báo không làm fail luồng nộp bài
-    }
+    } catch (_) {}
   }
-
-
 
   Future<SubmissionModel?> getMySubmission(
       {required String examId, required String classId}) async {
     return getBestSubmission(examId, classId);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   }
 
-
- Stream<Map<String, SubmissionModel>> streamMySubmissionsForClass(String classId) {
+  Stream<Map<String, SubmissionModel>> streamMySubmissionsForClass(String classId) {
     if (_myUid.isEmpty) return Stream.value({});
 
-    // gọi thẳng lên Firebase với 2 điều kiện (cần tạo Composite Index trên Firebase Console)
     return firestore
         .streamWhere(
           'submissions', 
@@ -259,7 +236,6 @@ class SubmissionController {
           final map = <String, SubmissionModel>{};
           for (final d in snap.docs) {
             final sub = SubmissionModel.fromJson(d.data(), id: d.id);
-            // Lấy submission tốt nhất cho mỗi exam (điểm cao nhất, nếu bằng điểm thì lấy lần gần nhất)
             final existing = map[sub.examId];
             if (existing == null ||
                 sub.score > existing.score ||
@@ -271,10 +247,6 @@ class SubmissionController {
           return map;
         });
   }
-  //chạy app màn hình danh sách có thể báo lỗi đỏ ở Debug Console yêu cầu tạo Index. 
-  //click vào link xanh trong báo lỗi để Firebase tự động tạo Index
-
-
 
   Stream<List<SubmissionModel>> streamSubmissionsForExamAndClass({
     required String examId,
@@ -287,7 +259,6 @@ class SubmissionController {
             .where((s) => s.classId == classId)
             .toList());
   }
-
 
   Future<Map<String, int>> getStudentStats() async {
     if (_myUid.isEmpty) return {'pending': 0, 'newToday': 0, 'done': 0};
@@ -308,10 +279,12 @@ class SubmissionController {
     if (chosen.isEmpty) return false;
     final correctAnswer = q.answer.trim().toLowerCase();
     final studentAnswer  = chosen.trim().toLowerCase();
+    
     switch (q.type) {
       case 'multiple_choice':
       case 'true_false':
       case 'fill_in':
+      case 'reading_comprehension': 
       default:
         return studentAnswer == correctAnswer;
     }

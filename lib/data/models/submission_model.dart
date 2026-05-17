@@ -77,6 +77,6 @@ class SubmissionModel {
         'status': status,
         'submitted_at': submittedAt,
         'duration_seconds': durationSeconds,
-        'attempt_number': attemptNumber, // ← MỚI
+        'attempt_number': attemptNumber, //
       };
 }

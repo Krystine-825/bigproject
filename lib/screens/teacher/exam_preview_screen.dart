@@ -23,8 +23,7 @@ class _ExamPreviewScreenState extends State<ExamPreviewScreen> {
   void initState() {
     super.initState();
     _exam = widget.exam;
-    // Warm cache lớp học ngay khi user đang xem preview —
-    // đến lúc bấm "Lưu & Giao đề", AssignExamScreen sẽ hiển thị danh sách lớp tức thì
+    // Warm cache lớp học ngay khi user đang xem preview
     ClassCacheService.instance.warmUp();
   }
 
@@ -134,7 +133,6 @@ class _ExamPreviewScreenState extends State<ExamPreviewScreen> {
     );
   }
 
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -189,16 +187,23 @@ class _ExamPreviewScreenState extends State<ExamPreviewScreen> {
     final mc = _exam.questions.where((q) => q.type == 'multiple_choice').length;
     final fi = _exam.questions.where((q) => q.type == 'fill_in').length;
     final tf = _exam.questions.where((q) => q.type == 'true_false').length;
+    final rc = _exam.questions.where((q) => q.type == 'reading_comprehension').length; 
+
     return Container(
       color: AppColors.white,
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      child: Row(children: [
-        _badge('Trắc nghiệm $mc', AppColors.primary),
-        const SizedBox(width: 8),
-        _badge('Điền từ $fi', Colors.orange),
-        const SizedBox(width: 8),
-        _badge('Đúng/Sai $tf', Colors.green),
-      ]),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(children: [
+          if (mc > 0) _badge('Trắc nghiệm $mc', AppColors.primary),
+          if (mc > 0) const SizedBox(width: 8),
+          if (rc > 0) _badge('Đọc hiểu $rc', Colors.indigo), // 
+          if (rc > 0) const SizedBox(width: 8),
+          if (fi > 0) _badge('Điền từ $fi', Colors.orange),
+          if (fi > 0) const SizedBox(width: 8),
+          if (tf > 0) _badge('Đúng/Sai $tf', Colors.green),
+        ]),
+      ),
     );
   }
 
@@ -212,9 +217,10 @@ class _ExamPreviewScreenState extends State<ExamPreviewScreen> {
         fontWeight: FontWeight.w600, color: color)),
   );
 
-
   Widget _buildQuestionCard(QuestionModel q, int index) {
+    //  Cập nhật nhãn
     final typeLabel = q.type == 'multiple_choice' ? 'Trắc nghiệm'
+        : q.type == 'reading_comprehension' ? 'Đọc hiểu'
         : q.type == 'fill_in' ? 'Điền từ' : 'Đúng / Sai';
 
     return Container(
@@ -245,7 +251,6 @@ class _ExamPreviewScreenState extends State<ExamPreviewScreen> {
               ),
               const SizedBox(width: 10),
               
-
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
@@ -276,7 +281,43 @@ class _ExamPreviewScreenState extends State<ExamPreviewScreen> {
             ]),
           ),
 
-        // nội dung câu hỏi
+          //  Khung hiển thị passage
+          if (q.passage != null && q.passage!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blueGrey.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.blueGrey.withOpacity(0.2)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.article_outlined, size: 16, color: Colors.blueGrey),
+                        SizedBox(width: 6),
+                        Text('Đoạn văn đọc hiểu', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      q.passage!,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: AppColors.textDark,
+                        height: 1.6,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          // nội dung câu hỏi
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
             child: Text(q.question.isEmpty ? '(Chưa có nội dung)' : q.question,
@@ -289,7 +330,8 @@ class _ExamPreviewScreenState extends State<ExamPreviewScreen> {
                 )),
           ),
 
-          if (q.type == 'multiple_choice' &&
+          //  Áp dụng render đáp án trắc nghiệm cho cả reading_comprehension
+          if ((q.type == 'multiple_choice' || q.type == 'reading_comprehension') &&
               q.options != null && q.options!.isNotEmpty)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
@@ -332,7 +374,7 @@ class _ExamPreviewScreenState extends State<ExamPreviewScreen> {
             ),
 
           // Đáp án (fill_in / true_false) 
-          if (q.type != 'multiple_choice')
+          if (q.type == 'fill_in' || q.type == 'true_false')
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
               child: Row(children: [
@@ -466,6 +508,7 @@ class _EditQuestionSheetState extends State<_EditQuestionSheet> {
   late TextEditingController _questionCtrl;
   late TextEditingController _answerCtrl;
   late TextEditingController _explanationCtrl;
+  late TextEditingController _passageCtrl; //  Thêm Controller cho đoạn văn
   late List<TextEditingController> _optionCtrls;
   late String _type;
   late String _answer;
@@ -477,10 +520,11 @@ class _EditQuestionSheetState extends State<_EditQuestionSheet> {
     _type        = q.type;
     _answer      = q.answer;
     
-
     _questionCtrl    = TextEditingController(text: q.question);
     _answerCtrl      = TextEditingController(text: q.answer);
     _explanationCtrl = TextEditingController(text: q.explanation);
+    _passageCtrl     = TextEditingController(text: q.passage ?? ''); // 
+
     _optionCtrls = (q.options ?? ['A. ', 'B. ', 'C. ', 'D. '])
         .map((o) => TextEditingController(text: o))
         .toList();
@@ -491,6 +535,7 @@ class _EditQuestionSheetState extends State<_EditQuestionSheet> {
     _questionCtrl.dispose();
     _answerCtrl.dispose();
     _explanationCtrl.dispose();
+    _passageCtrl.dispose(); // 
     for (final c in _optionCtrls) {
       c.dispose();
     }
@@ -498,14 +543,17 @@ class _EditQuestionSheetState extends State<_EditQuestionSheet> {
   }
 
   void _handleSave() {
-    final opts = _type == 'multiple_choice'
+    final isMC = _type == 'multiple_choice' || _type == 'reading_comprehension'; // 
+
+    final opts = isMC
         ? _optionCtrls.map((c) => c.text.trim()).toList()
         : null;
 
     final updated = widget.question.copyWith(
       question:    _questionCtrl.text.trim(),
-      answer:      _type == 'multiple_choice' ? _answer : _answerCtrl.text.trim(),
+      answer:      isMC ? _answer : _answerCtrl.text.trim(),
       explanation: _explanationCtrl.text.trim(),
+      passage:     _type == 'reading_comprehension' ? _passageCtrl.text.trim() : null, // 
       type:        _type,
       options:     opts,
     );
@@ -517,6 +565,7 @@ class _EditQuestionSheetState extends State<_EditQuestionSheet> {
   Widget build(BuildContext context) {
     final bottom = MediaQuery.of(context).viewInsets.bottom;
     return Container(
+      height: MediaQuery.of(context).size.height * 0.85, // Mở rộng chiều cao popup để gõ passage cho thoải mái
       padding: EdgeInsets.fromLTRB(20, 20, 20, 24 + bottom),
       decoration: const BoxDecoration(
         color: Colors.white,
@@ -538,18 +587,28 @@ class _EditQuestionSheetState extends State<_EditQuestionSheet> {
                     fontWeight: FontWeight.bold, color: AppColors.textDark)),
             const SizedBox(height: 16),
 
-            // Loại câu hỏi (Đã bỏ cột chọn Độ Khó)
+            //  Thêm option Đọc hiểu vào Dropdown
             _dropDown('Loại câu hỏi', _type, {
               'multiple_choice': 'Trắc nghiệm',
+              'reading_comprehension': 'Đọc hiểu',
               'fill_in':         'Điền từ',
               'true_false':      'Đúng/Sai',
             }, (v) => setState(() {
               _type = v!;
               if (_type == 'true_false') _answer = 'True';
-              if (_type == 'multiple_choice') _answer = 'A';
+              if (_type == 'multiple_choice' || _type == 'reading_comprehension') _answer = 'A';
             })),
             
             const SizedBox(height: 14),
+
+            //  Form nhập liệu đoạn văn nếu là Reading Comprehension
+            if (_type == 'reading_comprehension') ...[
+              _label('Đoạn văn đọc hiểu'),
+              const SizedBox(height: 6),
+              _textField(_passageCtrl, maxLines: 5,
+                  hint: 'Nhập nội dung đoạn văn tiếng Anh...'),
+              const SizedBox(height: 14),
+            ],
 
             // Nội dung câu hỏi
             _label('Câu hỏi'),
@@ -558,8 +617,8 @@ class _EditQuestionSheetState extends State<_EditQuestionSheet> {
                 hint: 'Nhập nội dung câu hỏi...'),
             const SizedBox(height: 14),
 
-            // Options (chỉ MC)
-            if (_type == 'multiple_choice') ...[
+            // Options (cho MC và Đọc hiểu)
+            if (_type == 'multiple_choice' || _type == 'reading_comprehension') ...[
               _label('Các lựa chọn (đánh dấu đáp án đúng)'),
               const SizedBox(height: 6),
               ...List.generate(4, (i) {

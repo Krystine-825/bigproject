@@ -4,7 +4,6 @@ import '../../data/models/exam_model.dart';
 import '../../data/models/question_model.dart';
 import '../../data/models/submission_model.dart';
 
-
 class ExamReviewScreen extends StatefulWidget {
   final ExamModel exam;
   final String classId;
@@ -39,7 +38,6 @@ class _ExamReviewScreenState extends State<ExamReviewScreen> {
     return chosen.trim().toLowerCase() == q.answer.trim().toLowerCase();
   }
 
-
   @override
   Widget build(BuildContext context) {
     final questions = widget.exam.questions;
@@ -66,7 +64,6 @@ class _ExamReviewScreenState extends State<ExamReviewScreen> {
       ),
     );
   }
-
 
   Widget _buildHeader() {
     return Container(
@@ -122,7 +119,6 @@ class _ExamReviewScreenState extends State<ExamReviewScreen> {
       ),
     );
   }
-
 
   Widget _buildScoreBanner(SubmissionModel sub) {
     final grade = _getGrade(sub.score);
@@ -215,7 +211,6 @@ class _ExamReviewScreenState extends State<ExamReviewScreen> {
     );
   }
 
-
   Widget _buildQuestionCard(QuestionModel q, int index) {
     final correct = _isCorrect(q);
     final chosen = _studentAnswers[q.id] ?? '';
@@ -290,6 +285,42 @@ class _ExamReviewScreenState extends State<ExamReviewScreen> {
             ),
           ),
 
+          //  Hiển thị Đoạn văn (Passage) nếu có
+          if (q.passage != null && q.passage!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blueGrey.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.blueGrey.withOpacity(0.2)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.article_outlined, size: 16, color: Colors.blueGrey),
+                        SizedBox(width: 6),
+                        Text('Đoạn văn đọc hiểu', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      q.passage!,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: AppColors.textDark,
+                        height: 1.6,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
             child: Text(
@@ -303,8 +334,8 @@ class _ExamReviewScreenState extends State<ExamReviewScreen> {
             ),
           ),
 
-          // Options / Answer section
-          if (q.type == 'multiple_choice' && q.options != null)
+          // Cập nhật điều kiện gọi _buildMCOptions cho cả Đọc hiểu
+          if ((q.type == 'multiple_choice' || q.type == 'reading_comprehension') && q.options != null)
             ..._buildMCOptions(q)
           else if (q.type == 'true_false')
             ..._buildTFOptions(q)
@@ -319,7 +350,6 @@ class _ExamReviewScreenState extends State<ExamReviewScreen> {
       ),
     );
   }
-
 
   List<Widget> _buildMCOptions(QuestionModel q) {
     return q.options!.map((opt) {
@@ -486,7 +516,6 @@ class _ExamReviewScreenState extends State<ExamReviewScreen> {
     }).toList();
   }
 
-
   Widget _buildFillInReview(QuestionModel q, String chosen) {
     final correct = _isCorrect(q);
     final unanswered = chosen.isEmpty;
@@ -566,7 +595,6 @@ class _ExamReviewScreenState extends State<ExamReviewScreen> {
     );
   }
 
-
   Widget _buildExplanation(String explanation) {
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
@@ -597,14 +625,15 @@ class _ExamReviewScreenState extends State<ExamReviewScreen> {
     );
   }
 
+  // Thêm nhãn màu cho loại câu hỏi Đọc hiểu
   Widget _typeBadge(String type) {
     final map = {
       'multiple_choice': ('Trắc nghiệm', AppColors.primary),
       'true_false': ('Đúng/Sai', Colors.teal),
       'fill_in': ('Điền từ', Colors.deepPurple),
+      'reading_comprehension': ('Đọc hiểu', Colors.indigo), 
     };
-    final info = map[type] ??
-        (type, AppColors.textMedium);
+    final info = map[type] ?? (type, AppColors.textMedium);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
@@ -618,7 +647,6 @@ class _ExamReviewScreenState extends State<ExamReviewScreen> {
       ),
     );
   }
-
 
   (String, Color) _getGrade(double score) {
     if (score >= 9) return ('Xuất sắc', const Color(0xFF10B981));

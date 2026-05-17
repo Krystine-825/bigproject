@@ -5,6 +5,7 @@ class QuestionModel {
   final String type;
   final List<String>? options;
   final String explanation;
+  final String? passage; // Thêm trường chứa đoạn văn cho câu hỏi Đọc hiểu
   
   const QuestionModel({
     required this.id,
@@ -13,6 +14,7 @@ class QuestionModel {
     required this.type,
     this.options,
     required this.explanation,
+    this.passage, 
   });
 
   factory QuestionModel.fromJson(Map<String, dynamic> json) {
@@ -24,6 +26,7 @@ class QuestionModel {
       options: (json['options'] as List<dynamic>?)
           ?.map((e) => e.toString()).toList(),
       explanation: json['explanation'] as String,
+      passage: json['passage'] as String?, 
     );
   }
 
@@ -35,6 +38,7 @@ class QuestionModel {
       'type': type,
       if (options != null) 'options': options,
       'explanation': explanation,
+      if (passage != null) 'passage': passage, 
     };
   }
 
@@ -45,6 +49,7 @@ class QuestionModel {
     String? type,
     List<String>? options,
     String? explanation,
+    String? passage, 
   }) {
     return QuestionModel(
       id: id ?? this.id,
@@ -53,6 +58,7 @@ class QuestionModel {
       type: type ?? this.type,
       options: options ?? this.options,
       explanation: explanation ?? this.explanation,
+      passage: passage ?? this.passage, 
     );
   }
 }

@@ -6,7 +6,6 @@ class StudentResultsController {
   final _auth = AuthService();
   final _firestore = FireStoreService();
 
-  
   final Map<String, String> _examNameCache = {};
   final Map<String, String> _classNameCache = {};
 
@@ -44,6 +43,9 @@ class StudentResultsController {
                         examName = raw;
                         _examNameCache[sub.examId] = raw; // Lưu vào Cache
                       }
+                    } else {
+                      // Xử lý an toàn khi giáo viên đã thu hồi hoặc xóa đề thi
+                      examName = 'Đề thi đã bị thu hồi/xoá';
                     }
                   } catch (_) {}
                 }
@@ -63,6 +65,9 @@ class StudentResultsController {
                         className = raw;
                         _classNameCache[sub.classId] = raw; // Lưu vào Cache
                       }
+                    } else {
+                      // Xử lý an toàn khi lớp học đã bị giải tán
+                      className = 'Lớp học đã giải tán';
                     }
                   } catch (_) {}
                 }

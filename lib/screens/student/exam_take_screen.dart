@@ -384,10 +384,45 @@ class _ExamTakeScreenState extends State<ExamTakeScreen> {
                   ),
                 ),
               ),
-              // ĐÃ XÓA _difficultyBadge Ở ĐÂY ĐỂ TRÁNH LỖI!
             ],
           ),
           const SizedBox(height: 16),
+
+          //  Hiển thị Đoạn văn (Passage) nếu có
+          if (q.passage != null && q.passage!.isNotEmpty) ...[
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.blueGrey.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.blueGrey.withOpacity(0.2)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.article_outlined, size: 18, color: Colors.blueGrey),
+                      SizedBox(width: 8),
+                      Text('Đoạn văn đọc hiểu', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    q.passage!,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      color: AppColors.textDark,
+                      height: 1.6,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
+
           Text(
             q.question,
             style: const TextStyle(
@@ -399,7 +434,8 @@ class _ExamTakeScreenState extends State<ExamTakeScreen> {
           ),
           const SizedBox(height: 24),
 
-          if (q.type == 'multiple_choice' && q.options != null)
+          // Xử lý hiển thị đáp án cho cả multiple_choice và reading_comprehension
+          if ((q.type == 'multiple_choice' || q.type == 'reading_comprehension') && q.options != null)
             ...q.options!.map((opt) => _buildMCOption(q, opt))
           else if (q.type == 'true_false')
             ...[

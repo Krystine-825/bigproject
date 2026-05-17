@@ -42,7 +42,7 @@ class ExamController {
       'fileName': fileName,
       'config': {
         'questionCount': questionCount,
-        'questionTypes': ['multiple_choice', 'fill_in', 'true_false'],
+        'questionTypes': ['multiple_choice', 'fill_in', 'true_false', 'reading_comprehension'],
         'targetCEFR': cefrLevel, 
       },
     });
@@ -77,10 +77,9 @@ class ExamController {
   }
 
   // giao đề
-  /// Giao đề cho **nhiều lớp cùng lúc** — chỉ 1 lần write Firestore
   Future<void> assignExamToClasses({
     required String examId,
-    required List<Map<String, String>> classes, // [{'id': ..., 'name': ...}]
+    required List<Map<String, String>> classes, 
     required int durationMinutes,
     required DateTime openAt,
     required DateTime closeAt,
@@ -108,7 +107,6 @@ class ExamController {
 
     final newClassIds = classes.map((c) => c['id']!).toList();
 
-    // 1 lần write duy nhất cho tất cả lớp
     await FirebaseFirestore.instance.collection('exams').doc(examId).update({
       'status': 'assigned',
       'class_id': newClassIds.first,
@@ -117,7 +115,6 @@ class ExamController {
       'assigned_at': now,
     });
 
-    // Gửi thông báo cho tất cả lớp — chạy nền, không block UI
     for (final cls in classes) {
       _sendAssignNotifications(
         examId: examId,
@@ -130,7 +127,6 @@ class ExamController {
     }
   }
 
-  /// Giao đề cho **1 lớp** (giữ lại để tương thích nếu cần)
   Future<void> assignExam({
     required String examId,
     required String classId,
@@ -173,7 +169,6 @@ class ExamController {
     );
   }
 
-  // Hàm riêng chạy nền xử lý Notifications
   Future<void> _sendAssignNotifications({
     required String examId,
     required String examName,
@@ -226,6 +221,9 @@ class ExamController {
     final List<dynamic> currentAssignments = data['assignments'] ?? [];
     final List<dynamic> currentAssignedClassIds =
         data['assigned_class_ids'] ?? [];
+        
+    // Lấy tên đề thi để hiện lên thông báo
+    final examName = (data['title'] ?? data['name'] ?? 'Đề thi') as String;
 
     final updatedAssignments = currentAssignments
         .where((a) => a['classId'] != classId)
@@ -237,16 +235,60 @@ class ExamController {
     // Trở về draft nếu thu hồi toàn bộ lớp
     final newStatus = updatedAssignments.isEmpty ? 'draft' : 'assigned';
 
-    await FirebaseFirestore.instance.collection('exams').doc(examId).update({
+    // 
+    final batch = FirebaseFirestore.instance.batch();
+
+    final examRef = FirebaseFirestore.instance.collection('exams').doc(examId);
+    batch.update(examRef, {
       'assignments': updatedAssignments,
       'assigned_class_ids': updatedAssignedClassIds,
       'status': newStatus,
     });
+
+    final subSnap = await firestore.queryWhere(
+      'submissions',
+      field: 'exam_id',
+      isEqualTo: examId,
+    );
+    for (final doc in subSnap.docs) {
+      if (doc.data()['class_id'] == classId) {
+        batch.delete(doc.reference); // Xóa bài nộp cũ của học sinh
+      }
+    }
+
+    await batch.commit(); // Chạy đồng thời
+
+    // gửi thông báo cho học sinh 
+    try {
+      final memberSnap = await firestore.queryWhere(
+        'class_members',
+        field: 'class_id',
+        isEqualTo: classId,
+      );
+      final studentIds = memberSnap.docs
+          .where((doc) => doc.data()['status'] == 'active')
+          .map((doc) => (doc.data()['student_id'] as String?) ?? '')
+          .where((id) => id.isNotEmpty)
+          .toList();
+
+      if (studentIds.isNotEmpty) {
+        final classDoc = await firestore.getDocument('classes', classId);
+        final className =
+            (classDoc.data()?['name'] as String?) ?? 'Lớp học';
+
+        // Gọi hàm từ notification_controller
+        await _notif.notifyExamDeletedToStudents(
+          studentIds: studentIds,
+          examName: examName,
+          classId: classId,
+          className: className,
+        );
+      }
+    } catch (_) {}
   }
 
   // xóa đề thi và toàn bộ bài nộp
   Future<void> deleteExam(String examId) async {
-    // gửi thông báo cho học sinh trước khi xóa
     try {
       final examDoc = await firestore.getDocument('exams', examId);
       if (examDoc.exists && examDoc.data() != null) {
@@ -268,8 +310,7 @@ class ExamController {
 
           if (studentIds.isNotEmpty) {
             final classDoc = await firestore.getDocument('classes', classId);
-            final className =
-                (classDoc.data()?['name'] as String?) ?? 'Lớp học';
+            final className = (classDoc.data()?['name'] as String?) ?? 'Lớp học';
 
             await _notif.notifyExamDeletedToStudents(
               studentIds: studentIds,
@@ -280,12 +321,10 @@ class ExamController {
           }
         }
       }
-    } catch (_) {} // lỗi thông báo thì vẫn tiếp tục xóa
+    } catch (_) {} 
 
-    // gom tất cả lệnh xóa vào một Batch để đảm bảo an toàn
     final batch = FirebaseFirestore.instance.batch();
 
-    // tìm và đưa toàn bộ bài nộp (submissions) của đề này vào danh sách xóa
     final subSnap = await firestore.queryWhere(
       'submissions',
       field: 'exam_id',
@@ -295,11 +334,9 @@ class ExamController {
       batch.delete(doc.reference);
     }
 
-    // đưa đề thi gốc vào danh sách xóa
     final examRef = FirebaseFirestore.instance.collection('exams').doc(examId);
     batch.delete(examRef);
 
-    // thực thi xóa hàng loạt
     await batch.commit();
   }
 

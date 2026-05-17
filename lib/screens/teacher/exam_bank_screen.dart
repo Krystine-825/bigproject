@@ -33,14 +33,14 @@ class _ExamBankScreenState extends State<ExamBankScreen> {
     ClassCacheService.instance.warmUp();
   }
 
-  // xác nhận và thực hiện xóa đề 
+  // Xác nhận và thực hiện xóa đề (chỉ dùng cho đề chưa giao)
   Future<void> _confirmDelete(ExamModel exam) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text('Xóa đề thi?', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-        content: Text('Bạn có chắc muốn xóa đề "${exam.name}"? \nHành động này sẽ xóa vĩnh viễn đề thi và toàn bộ bài làm của học sinh liên quan.'),
+        content: Text('Bạn có chắc muốn xóa đề "${exam.name}"? \nHành động này sẽ xóa vĩnh viễn đề thi.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -74,6 +74,66 @@ class _ExamBankScreenState extends State<ExamBankScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Lỗi: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
+  //  Xác nhận và thực hiện Thu hồi đề (dùng cho đề đã giao)
+  Future<void> _confirmRevoke(ExamModel exam) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Thu hồi đề thi?', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+        content: Text('Bạn có chắc muốn thu hồi đề "${exam.name}" từ tất cả các lớp?\n\nToàn bộ bài làm của học sinh sẽ bị xóa sạch, và đề thi sẽ quay trở lại mục "Chưa giao" để bạn chỉnh sửa hoặc giao lại.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy', style: TextStyle(color: AppColors.textMedium)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('Thu hồi', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      // Hiển thị vòng xoay loading mờ để chờ xử lý thu hồi (vì có thể có nhiều lớp)
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
+      );
+
+      try {
+        // Lặp qua tất cả các lớp đang được giao đề này và thu hồi lần lượt
+        for (final assignment in exam.assignments) {
+          await _controller.unassignExam(examId: exam.id, classId: assignment.classId);
+        }
+        
+        if (mounted) {
+          Navigator.pop(context); // Đóng dialog loading
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Đã thu hồi đề thi thành công! Bạn có thể giao lại ngay.'),
+              backgroundColor: Colors.green,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          Navigator.pop(context); // Đóng dialog loading
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Lỗi khi thu hồi: $e'), backgroundColor: Colors.red),
           );
         }
       }
@@ -248,19 +308,39 @@ class _ExamBankScreenState extends State<ExamBankScreen> {
                       ),
                     ),
                     
-                    //Chỉ render nút xóa nếu đề thi chưa giao
+                    // Phân luồng hiển thị nút Xóa và Thu hồi
                     if (!isAssigned) ...[
                       const SizedBox(height: 12),
-                      // nút xóa 
-                      GestureDetector(
-                        onTap: () => _confirmDelete(exam),
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.red.withOpacity(0.08),
-                            borderRadius: BorderRadius.circular(10),
+                      // Nút xóa (chỉ khi Chưa giao)
+                      Tooltip(
+                        message: 'Xóa đề thi vĩnh viễn',
+                        child: GestureDetector(
+                          onTap: () => _confirmDelete(exam),
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.red.withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 20),
                           ),
-                          child: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 20),
+                        ),
+                      ),
+                    ] else ...[
+                      const SizedBox(height: 12),
+                      // Nút thu hồi (chỉ khi Đã giao)
+                      Tooltip(
+                        message: 'Thu hồi đề thi',
+                        child: GestureDetector(
+                          onTap: () => _confirmRevoke(exam),
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.red.withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(Icons.settings_backup_restore_rounded, color: Colors.red, size: 20),
+                          ),
                         ),
                       ),
                     ],
