@@ -12,19 +12,45 @@ function cleanText(raw) {
 
 function validateContent(text) {
   const normalizedText = text.normalize('NFC');
-  const cleanStr = normalizedText.replace(/\s+/g, '');
-  const totalChars = cleanStr.length;
+  const cleanText = normalizedText.replace(/\s+/g, '');
+  const totalChars = cleanText.length;
 
-  if (totalChars < 50) return { valid: false, reason: 'Nội dung PDF quá ngắn (dưới 50 ký tự).' };
+  if (totalChars < 50) { 
+    return { valid: false, reason: 'Nội dung PDF quá ngắn sau khi xử lý (dưới 50 ký tự).' };
+  }
 
-  const viCount = (cleanStr.match(/[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/gi) || []).length;
-  if (viCount / totalChars > 0.5) return { valid: false, reason: 'File chứa quá nhiều tiếng Việt.' };
+  const viPattern = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/gi;
+  const viCount   = (cleanText.match(viPattern) || []).length;
+  const viRatio   = viCount / totalChars;
+  
+  if (viRatio > 0.5) { 
+    return {
+      valid: false,
+      reason: `File chứa tiếng Việt (${(viRatio * 100).toFixed(1)}%). Vui lòng dùng tài liệu tiếng Anh.`,
+    };
+  }
 
-  const mathCount = (cleanStr.match(/[∑∫∂√∞±×÷≤≥≠≈α-ωΑ-Ω²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉]/g) || []).length;
-  if (mathCount / totalChars > 0.05) return { valid: false, reason: 'File chứa quá nhiều ký tự toán học.' };
+  const mathPattern = /[∑∫∂√∞±×÷≤≥≠≈α-ωΑ-Ω²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉]/g;
+  const mathCount   = (cleanText.match(mathPattern) || []).length;
+  const mathRatio   = mathCount / totalChars;
 
-  const engCount = (cleanStr.match(/[a-zA-Z0-9.,!?;:'"()\[\]\-_]/g) || []).length;
-  if (engCount / totalChars < 0.70) return { valid: false, reason: 'Nội dung tiếng Anh quá ít hoặc bị lỗi font.' };
+  if (mathRatio > 0.05) {
+    return {
+      valid: false,
+      reason: `File chứa quá nhiều ký tự toán học/công thức (${(mathRatio * 100).toFixed(1)}%). Chỉ chấp nhận tài liệu ngôn ngữ thuần túy.`,
+    };
+  }
+
+  const engPattern = /[a-zA-Z0-9.,!?;:'"()\[\]\-_]/g;
+  const engCount   = (cleanText.match(engPattern) || []).length;
+  const engRatio   = engCount / totalChars;
+
+  if (engRatio < 0.70) { 
+    return {
+      valid: false,
+      reason: 'Nội dung tiếng Anh quá ít hoặc file bị mã hóa lỗi. Vui lòng chọn tài liệu tiếng Anh chuẩn.',
+    };
+  }
 
   return { valid: true };
 }
@@ -34,7 +60,8 @@ function generateTitle(fileName) {
     .replace(/\.pdf$/i, '')
     .replace(/[-_]/g, ' ')
     .replace(/\b\w/g, c => c.toUpperCase())
-    .trim() || 'English Exam';
+    .trim()
+    || 'English Exam';
 }
 
 module.exports = { cleanText, validateContent, generateTitle };
