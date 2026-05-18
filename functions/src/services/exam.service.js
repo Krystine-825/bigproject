@@ -4,7 +4,7 @@ const logger = require('firebase-functions/logger');
 const { cleanText, validateContent, generateTitle } = require('../utils/helpers');
 const { generateQuestionsFromAI } = require('./ai.service');
 
-const MAX_EXAMS_PER_DAY = 10;
+const MAX_EXAMS_PER_DAY = 3;
 const MAX_CHARS = 40000;
 
 async function processAndSaveExam(userId, extractedText, fileName, config) {
