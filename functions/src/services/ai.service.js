@@ -1,4 +1,3 @@
-
 const OpenAI = require('openai');
 const logger = require('firebase-functions/logger');
 

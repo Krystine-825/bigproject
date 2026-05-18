@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/app_colors.dart';
 import '../../controllers/auth_controller.dart';
 import '../../controllers/profile_controller.dart';
@@ -20,7 +21,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   final profile = ProfileController();
   final auth    = AuthController();
   final fcm    = FcmService();
-
 
   static UserModel? _cachedUser;
   static Map<String, dynamic> _cachedStats = {};
@@ -55,14 +55,17 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     }
     _cachedUser = user;
 
-    // Tải song song: thông báo + stats
-    final results = await Future.wait([
-      fcm.hasToken(),
-      _fetchStats(user),
-    ]);
+    // đọc trạng thái Bật/Tắt trực tiếp từ ổ cứng thay vì chờ Firebase
+    final prefs = await SharedPreferences.getInstance();
+    final hasNotif = prefs.getBool('is_notification_enabled') ?? false;
 
-    final hasNotif = results[0] as bool;
-    final s        = results[1] as Map<String, dynamic>;
+    // Tải thông số thống kê
+    final s = await _fetchStats(user);
+
+    // Nếu ổ cứng ghi nhận là Đang Bật, ta gọi ngầm để đảm bảo Firebase giữ Token
+    if (hasNotif) {
+      fcm.requestPermissionAndSaveToken();
+    }
 
     // Lưu vào cache
     _cachedStats = s;
@@ -106,12 +109,18 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   // Xử lý bật/tắt thông báo
   Future<void> _onToggleNotification(bool value) async {
     setState(() => notification = value);
+    
+    // Lưu ngay trạng thái người dùng bấm vào ổ cứng
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('is_notification_enabled', value);
 
     if (value) {
       final granted = await fcm.requestPermissionAndSaveToken();
       if (!granted && mounted) {
-        // Hệ thống từ chối quyền → đổi Switch lại
+        // Hệ thống từ chối quyền → đổi Switch lại và lưu vào ổ cứng là Tắt
         setState(() => notification = false);
+        await prefs.setBool('is_notification_enabled', false); 
+        
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
@@ -357,7 +366,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               },
             ),
             _divider(),
-            //Switch gọi _onToggleNotification thay vì setState trực tiếp
             menuItem(
               icon: Icons.notifications_rounded,
               iconBg: const Color(0xFFEFF6FF),
@@ -481,6 +489,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           TextButton(
             onPressed: () async {
               Navigator.pop(ctx);
+              
+              // Xoá luôn trạng thái thông báo ở ổ cứng khi đăng xuất
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setBool('is_notification_enabled', false);
+              
               // xoá token trước khi đăng xuất
               await fcm.removeToken();
               // đăng xuất Firebase
@@ -505,3 +518,5 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     );
   }
 }
+
+// nhớ chạy flutter pub add shared_preferences để thêm thư viện cho chắc
