@@ -58,6 +58,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "927178680548-73d3aclcbs9mir9nunj9hihj856nliq0.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.edu_exam",
+            "certificate_hash": "4174ebbc1d9b11ef17b3e4180e8025b8b9e521dd"
+          }
+        },
+        {
           "client_id": "927178680548-dq293rf230i0p9dpd07053q4go7728cl.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {

@@ -65,7 +65,13 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
           children: [
             Icon(Icons.check_circle_rounded, color: Colors.green, size: 28),
             SizedBox(width: 8),
-            Text('Tham gia thành công!'),
+            Expanded(
+              child: Text(
+                'Tham gia thành công!',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ],
         ),
         content: Column(

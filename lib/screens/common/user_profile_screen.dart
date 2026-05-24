@@ -9,6 +9,7 @@ import '../../widgets/common/custom_button_nav_student.dart';
 import '../../data/services/fcm_service.dart'; 
 import 'personal_info_screen.dart';
 import 'change_password_screen.dart';
+import '../../data/services/class_cache_service.dart'; 
 
 class UserProfileScreen extends StatefulWidget {
   const UserProfileScreen({super.key});
@@ -502,6 +503,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               _cachedUser = null;
               _cachedStats = {};
               _cachedNotif = false;
+
+              ClassCacheService.instance.invalidate();
 
               if (mounted) {
                 Navigator.pushNamedAndRemoveUntil(

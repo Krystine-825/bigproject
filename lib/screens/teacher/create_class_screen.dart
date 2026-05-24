@@ -68,7 +68,13 @@ class _CreateClassScreenState extends State<CreateClassScreen> {
           children: [
             Icon(Icons.check_circle_rounded, color: Colors.green, size: 28),
             SizedBox(width: 8),
-            Text('Tạo lớp thành công!'),
+            Expanded(
+              child: Text(
+                'Tạo lớp thành công!',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ],
         ),
         content: Column(

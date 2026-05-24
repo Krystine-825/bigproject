@@ -98,7 +98,7 @@ async function generateQuestionsFromAI(text, config) {
       logger.info(`[OPENAI] Bắt đầu gọi API sinh đề (Lần thử: ${attempt}/${MAX_RETRIES})...`);
       
       const response = await openai.chat.completions.create({
-        model: 'gpt-4omini',
+        model: 'gpt-4o-mini',
         temperature: 0.7,
         messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
         response_format: { type: 'json_object' },

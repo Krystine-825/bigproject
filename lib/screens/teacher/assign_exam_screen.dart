@@ -285,7 +285,6 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Row(
-                mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
                     _showAnswerAfterSubmit
@@ -297,16 +296,21 @@ class _AssignExamScreenState extends State<AssignExamScreen> {
                         : Colors.orange,
                   ),
                   const SizedBox(width: 6),
-                  Text(
-                    _showAnswerAfterSubmit
-                        ? 'Học sinh được xem đáp án sau khi nộp'
-                        : 'Học sinh không được xem đáp án',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: _showAnswerAfterSubmit
-                          ? const Color(0xFF10B981)
-                          : Colors.orange,
-                      fontWeight: FontWeight.w600,
+                  Expanded(
+                    child: Text(
+                      _showAnswerAfterSubmit
+                          ? 'Học sinh được xem đáp án sau khi nộp'
+                          : 'Học sinh không được xem đáp án',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: _showAnswerAfterSubmit
+                            ? const Color(0xFF10B981)
+                            : Colors.orange,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],
